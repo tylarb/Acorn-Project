@@ -15,9 +15,9 @@ import (
 	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/cloudfoundry-community/go-cfenv"
 	"github.com/nlopes/slack"
+	log "github.com/sirupsen/logrus"
 )
 
 const serviceLable = "elephantsql"
