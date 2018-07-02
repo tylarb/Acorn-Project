@@ -1,0 +1,7 @@
+---
+applications:
+        - name: PCF-Support-Bot
+          buildpack: go_buildpack
+          env:
+                  GOVERSION: go1.10.3
+                  GOPACKAGENAME: supportBot
