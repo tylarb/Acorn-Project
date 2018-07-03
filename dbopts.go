@@ -16,9 +16,19 @@ import (
 
 // Table creation SQL strings
 const (
-	peopleTable = "CREATE TABLE IF NOT EXISTS people(id SERIAL PRIMARY KEY, name TEXT, karma INTEGER, shame INTEGER);"
-	alsoTable   = "CREATE TABLE IF NOT EXISTS isalso(id SERIAL PRIMARY KEY, name TEXT, also TEXT);"
+	componentsTable = "CREATE TABLE IF NOT EXISTS components(id SERIAL PRIMARY KEY, component VARCHAR(20), slack_channel VARCHAR(10), playbook VARCHAR(30), anchor_id INT)"
+	anchorsTable    = "CREATE TABLE IF NOT EXISTS anchors(id SERIAL PRIMARY KEY, anchor_slack VARCHAR(20), salesforceID VARCHAR(30), name VARCHAR(50)) "
+	tagsTable       = "CREATE TABLE IF NOT EXISTS tags(id SERIAL PRIMARY KEY, tag VARCHAR(20), component_id INT)"
 )
+
+// TODO: make sure this makes sense
+type tagInfo struct {
+	name           string
+	anchor         string
+	component      string
+	slackChannelID string
+	playbook       string
+}
 
 // Define a global db connection. We don't need to close the db conn - if there's an error we'll try
 // to recreate the db connection, but otherwise we don't intend to trash it
@@ -38,194 +48,89 @@ func dbConnect() *sql.DB {
 		log.Fatal(err)
 	}
 	log.WithField("conStr", conStr).Info("Successfully connected to a postgres DB")
-
-	// go ahead and check tables here
-	checkTables()
+	// TODO create relevant tables and check them
+	//	checkTables()
 	return db
 }
 
 // confirm all database tables exist and exit if they don't try to create them
-func checkTables() {
+func checkTables() error {
 
 	var result string
-	err := db.QueryRow("SELECT 1 FROM people LIMIT 1").Scan(&result)
+	var err error
+	err = db.QueryRow("SELECT 1 FROM components LIMIT 1").Scan(&result)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			log.Error("Could not select from people table, will try to create it now")
-			createPeopleTable()
-		} else {
-			log.Fatal(err)
-		}
+		log.Error("Could not select from component table, will attempt to create it now")
+		err = createComponentsTable()
 	}
-	err = db.QueryRow("SELECT 1 from isalso LIMIT 1").Scan(&result)
+	err = db.QueryRow("SELECT 1 from anchors LIMIT 1").Scan(&result)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			log.Error("Could not select from isalso table, will try to create it now")
-			createAlsoTable()
-		} else {
-			log.Fatal(err)
-		}
+		log.Error("Could not select from anchor table, will attempt to create it now")
+		err = createAnchorsTable()
 	}
+	err = db.QueryRow("SELECT 1 from tags LIMIT 1").Scan(&result)
 
+	if err != nil {
+		log.Error("Could not select from tags table, will attempt to create it now")
+		err = createTagsTable()
+	}
+	return err
 }
 
-// creates the "people" table in database
-func createPeopleTable() {
-	_, err := db.Exec(peopleTable)
+// creates the "components" table in database
+func createComponentsTable() error {
+	_, err := db.Exec(componentsTable)
 	if err != nil {
-		log.Error("Problem creating people table")
+		log.Error("Problem creating components table")
 		log.Fatal(err)
 	}
+	log.Info("Successfully created components table")
+	return nil
 }
 
-// creates the "isalso" table in database
-func createAlsoTable() {
-	_, err := db.Exec(alsoTable)
+// creates the "anchors" table in database
+func createAnchorsTable() error {
+	_, err := db.Exec(anchorsTable)
 	if err != nil {
-		log.Error("Problem creating isalso table")
+		log.Error("Problem creating anchors table")
 		log.Fatal(err)
 	}
+	log.Info("Successfully created anchors table")
+	return nil
 }
 
-// karmaVal.ask accepts k karmaval and returns a karmaVal with k.points updated
-func (k *karmaVal) ask() {
-
-	var result int
-	var err error
-	var present = true
-	if k.shame {
-		err = db.QueryRow("SELECT shame FROM people WHERE name=$1", k.name).Scan(&result)
-	} else {
-		err = db.QueryRow("SELECT karma FROM people WHERE name=$1", k.name).Scan(&result)
-	}
-
+// creates the "tags" table in database
+func createTagsTable() error {
+	_, err := db.Exec(tagsTable)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			log.WithField("name", k.name).Debug("No karma or shame for this user yet")
-			result = 0
-			present = false
-		} else {
-			log.Fatal(err)
-		}
-	}
-	k.points = result
-	k.present = present
-}
-
-// karmaVal.rank returns the overall ranking of an individual entered as an INT. Does not
-// return the actual karma of the indivitual, or 0 if user is not in DB
-func (k *karmaVal) rank() int {
-	var result int
-	var err error
-	if k.shame {
-		err = db.QueryRow("SELECT (SELECT COUNT(*) FROM people AS t2 WHERE t2.shame > t1.shame) AS row_Num FROM people as t1 WHERE name=$1", k.name).Scan(&result)
-	} else {
-		err = db.QueryRow("SELECT (SELECT COUNT(*) FROM people AS t2 WHERE t2.karma > t1.karma) AS row_Num FROM people as t1 WHERE name=$1", k.name).Scan(&result)
-	}
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return result
-		}
-		log.Error("issue getting RANK from the people database")
+		log.Error("Problem creating tags table")
 		log.Fatal(err)
 	}
-	return result + 1
+	log.Info("Successfully created tags table")
+	return nil
 }
 
-// Handles moving karma or shame up or down. Accepts k karmaVal with k.name entered and an up/down
-// flag, then returns updated karmaVal struct with points updated.
-func (k *karmaVal) modify(upvote bool) {
+// TODO: make this able to handle more than one component per tag (i.e. if tags return multiple components)
+func keywordAsk(n string) (t tagInfo) {
 	var err error
-	k.ask()
-	if upvote {
-		k.points++
-	} else {
-		k.points--
-	}
-	if k.present {
-		if k.shame {
-			_, err = db.Exec("UPDATE people SET shame = $1 WHERE name = $2", k.points, k.name)
-		} else {
-			_, err = db.Exec("UPDATE people SET karma = $1 WHERE name = $2", k.points, k.name)
-		}
-		if err != nil {
-			log.Error("There was a problem updating karma table in the database")
-			log.Fatal(err)
-		}
-		log.WithField("Name", k.name).Debug("updated karma")
-	} else {
-		if k.shame {
-			_, err = db.Exec("INSERT INTO people(name,karma,shame) VALUES($1,0,$2)", k.name, k.points)
-		} else {
-			_, err = db.Exec("INSERT INTO people(name,karma,shame) VALUES($1,$2,0)", k.name, k.points)
-		}
-		if err != nil {
-			log.Error("There was an error inserting into karma table in the database")
-			log.Fatal(err)
-		}
-		log.WithField("Name", k.name).Debug("inserted karma")
-	}
-}
-
-//TODO Finish this
-func globalRank(kind string) {
+	t.name = n
 	var (
-		name  string
-		karma string
-		err   error
-		rows  *sql.Rows
+		componentID string
+		anchorID    string
 	)
-	switch {
-	case kind == "top":
-		rows, err = db.Query("SELECT name, karma FROM people ORDER BY karma DESC LIMIT 5")
-		if err != nil {
-			log.Error("Error selecting top karma from DB")
-			log.Fatal(err)
-		}
-	case kind == "bottom":
-	case kind == "shame":
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		err := rows.Scan(&name, &karma)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-	}
-	err = rows.Err()
+	err = db.QueryRow("SELECT component_id from tags WHERE tag=$1", n).Scan(&componentID)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err) // TODO: go ahead and exit if tag does exist
 	}
-
-}
-
-// isAlsoAsk queries isAlso table in DB for a random entry of the inputed name, n. Returns empty string
-// if value is not in the table
-func isAlsoAsk(n string) string {
-	var err error
-	var result string
-	err = db.QueryRow("SELECT also FROM isalso WHERE name=$1 ORDER BY RANDOM() LIMIT 1", n).Scan(&result)
+	err = db.QueryRow("SELECT component,anchor_id,slack_channel,playbook FROM components WHERE id=$1", componentID).Scan(&t.component, &anchorID, &t.slackChannelID, &t.playbook)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return ""
-		}
-		log.Error("There wa some error selecting value from the Also table")
-		log.Fatal(err)
+		log.Fatal(err) // TODO: THIS SHOULD NOT EVER CAUSE AN ISSUE - make sure component exists created when a tag gets created
 	}
-	return result
-}
-
-// isAlsoAdd adds an "also" value to the database
-func isAlsoAdd(n string, also string) {
-	var err error
-	_, err = db.Exec("INSERT INTO isalso(name,also) VALUES ($1,$2)", n, also)
+	err = db.QueryRow("SELECT anchor_slack FROM anchors WHERE id=$1", anchorID).Scan(&t.anchor)
 	if err != nil {
-		log.Error("There was an error inserting into the isalso table")
-		log.Fatal(err)
+		log.Fatal(err) // TODO: see note above - anchors are mandatory field in component
 	}
-	log.WithField("name", n).WithField("value", also).Debug("Added to also table")
+	return
 }

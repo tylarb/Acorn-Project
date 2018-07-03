@@ -29,10 +29,10 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
+  branch = "master"
   name = "github.com/nlopes/slack"
   packages = ["."]
-  revision = "8ab4d0b364ef1e9af5d102531da20d5ec902b6c4"
-  version = "v0.2.0"
+  revision = "0afac90b917f77d7c59d638420d5d40fe65eee61"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -64,6 +64,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8fe000550ccf806b699cec340580fb7ccaa42089bb69939371d6505f7dd72be2"
+  inputs-digest = "66eabb1f3779feb32bbd766db9c2bd2f43a7a83ce02547cb42a234853fec1dae"
   solver-name = "gps-cdcl"
   solver-version = 1

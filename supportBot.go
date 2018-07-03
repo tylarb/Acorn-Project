@@ -26,9 +26,11 @@ var conStr string
 
 // Get bot name and token from env, and make sure botID is globally accessible
 var (
-	slackBotToken = os.Getenv("SLACK_BOT_TOKEN")
-	slackBotName  = os.Getenv("SLACK_BOT_NAME")
-	botID         string
+	slackBotToken   = os.Getenv("SLACK_BOT_TOKEN")
+	slackBotName    = os.Getenv("SLACK_BOT_NAME")
+	slackBotChannel = os.Getenv("SLACK_BOT_CHANNEL")
+	botID           string
+	chanID          string
 )
 
 // The slack client and RTM messaging are used as an out - rather than passing
@@ -63,6 +65,11 @@ func init() {
 		log.Fatal("Could not find database URI")
 	}
 	dbConnect()
+	err = checkTables()
+	if err != nil {
+		log.Error("Could not query tables and had a problem creating them successfully, closing")
+		log.Fatal(err)
+	}
 }
 
 func getBotID(botName string, sc *slack.Client) (botID string) {
@@ -72,10 +79,28 @@ func getBotID(botName string, sc *slack.Client) (botID string) {
 	}
 	for _, user := range users {
 		if user.Name == botName {
-			log.WithFields(log.Fields{"ID": user.ID, "name": user.Name}).Debug("Found bot:")
+			log.WithFields(log.Fields{"ID": user.ID, "name": user.Name}).Info("Found bot:")
 			botID = user.ID
+			return
 		}
 	}
+	log.Fatal("Could not find a userID for the botID provided")
+	return
+}
+
+func getBotChannel(chanName string, sc *slack.Client) (chanID string) {
+	channels, err := sc.GetChannels(true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, channel := range channels {
+		if channel.Name == chanName {
+			log.WithField("Channel ID", channel.ID).Info("Found channel")
+			chanID = channel.ID
+			return
+		}
+	}
+	log.Fatal("Could not find a channelID for the channel name provided")
 	return
 }
 
@@ -84,6 +109,7 @@ func main() {
 
 	sc = slack.New(slackBotToken)
 	botID = getBotID(slackBotName, sc)
+	chanID = getBotChannel(slackBotChannel, sc)
 	log.WithField("ID", botID).Debug("Bot ID returned")
 	rtm = sc.NewRTM()
 	go rtm.ManageConnection()
@@ -102,6 +128,15 @@ func main() {
 			if err != nil {
 				log.WithField("ERROR", err).Error("parse message failed")
 			}
+		case *slack.MemberJoinedChannelEvent:
+			if ev.Channel == chanID {
+				err := postHelpJoin(ev)
+				if err != nil {
+					log.Error("could not post help on user join channel")
+					log.Error(err)
+				}
+			}
+
 		case *slack.LatencyReport:
 			log.WithField("Latency", ev.Value).Debug("Latency Reported")
 		case *slack.RTMError:
