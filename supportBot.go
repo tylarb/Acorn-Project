@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-community/go-cfenv"
-	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
+	"github.com/tylarb/slack"
 )
 
 const serviceLable = "elephantsql"

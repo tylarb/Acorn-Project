@@ -29,22 +29,16 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/nlopes/slack"
-  packages = ["."]
-  revision = "0afac90b917f77d7c59d638420d5d40fe65eee61"
-
-[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
   version = "v1.0.5"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/tylarb/TimeCache"
+  branch = "reply-to"
+  name = "github.com/tylarb/slack"
   packages = ["."]
-  revision = "a41aeaee81b450e1e1cdd3abcdcbb5d6bb890a15"
+  revision = "b84d387afebc85759ae1e0729f54d1ceef3ff08c"
 
 [[projects]]
   branch = "master"
@@ -64,6 +58,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "66eabb1f3779feb32bbd766db9c2bd2f43a7a83ce02547cb42a234853fec1dae"
+  inputs-digest = "a72768eb3cd5c792bc039223b167c204210fac863e18e7f3c140fc739a3cd34b"
   solver-name = "gps-cdcl"
   solver-version = 1

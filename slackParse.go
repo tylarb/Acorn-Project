@@ -22,13 +22,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
+	"github.com/tylarb/slack"
 )
-
-// set URL for expansion here
-// TODO: change to OS env variable and/or move to SDFC api
-const baseURL = "http://example.com/"
 
 type response struct {
 	message     string
@@ -36,6 +32,7 @@ type response struct {
 	channel     string
 	isEphemeral bool
 	isIM        bool
+	threadTS    string
 }
 
 // regex definitions
@@ -53,7 +50,7 @@ type "keyword: [keyword]" to see playbooks, appropriate channels, and the anchor
 type "anchor: [keyword]" to see the anchor and channel in charge of a product
 type "help" in this channel to see this message again at any time`
 
-	r := response{message, ev.User, ev.Channel, true, false}
+	r := response{message, ev.User, ev.Channel, true, false, ""}
 	err := slackPrint(r)
 	if err != nil {
 		log.Error("error printing to Slack")
@@ -68,7 +65,7 @@ type "keyword: [keyword]" to see playbooks, appropriate channels, and the anchor
 type "anchor: [keyword]" to see the anchor and channel in charge of a product
 type "help" in this channel to see this message again at any time`
 
-	r := response{message, ev.User, ev.Channel, true, false}
+	r := response{message, ev.User, ev.Channel, true, false, ""}
 	err := slackPrint(r)
 	if err != nil {
 		log.Error("error printing to Slack")
@@ -137,7 +134,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	for i := 1; i < len(words); i++ {
 		t = keywordAsk(words[i])
 		s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s", t.name, t.anchor, t.component, t.slackChannelID, t.playbook)
-		var r = response{s, ev.User, ev.Channel, false, false}
+		var r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
 		slackPrint(r)
 	}
 	return nil
@@ -160,7 +157,7 @@ func slackPrint(r response) (err error) {
 	case r.isEphemeral:
 		_, err = postEphemeral(rtm, r.channel, r.user, r.message)
 	default:
-		rtm.SendMessage(rtm.NewOutgoingMessage(r.message, r.channel))
+		rtm.SendMessage(rtm.NewOutgoingMessage(r.message, r.channel, r.threadTS))
 		err = nil
 	}
 	return
