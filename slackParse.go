@@ -177,7 +177,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 			responses = append(responses, s)
 		} else {
 			for _, tag := range tags {
-				s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s\n", tag.name, tag.anchor, tag.component, tag.slackChannelID, tag.playbook)
+				s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s\n", tag.name, usrFormat(tag.anchor), tag.component, chanFormat(tag.slackChannelID), tag.playbook)
 				responses = append(responses, s)
 			}
 		}
@@ -199,7 +199,7 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 	case regTags.MatchString(words[1]):
 		if len(words) < 5 {
 			postHelp(ev, tagsHelp)
-		} //TODO complete this
+		} //TODO complete this - Tag component Slack Chan as the ID - import ID to database via strings.Trim(c,"<>") then cut on | and accept first array value
 	case regAdd.MatchString(words[1]):
 		switch {
 		case len(words) < 5:
@@ -229,4 +229,9 @@ func slackPrint(r response) (err error) {
 // formats the user string to make sure indidual gets tagged correctly in slack
 func usrFormat(u string) string {
 	return fmt.Sprintf("<@%s>", u)
+}
+
+// formats a channel ID to allow channel linking update to slack
+func chanFormat(c string) string {
+	return fmt.Sprintf("<#%s>", c)
 }
