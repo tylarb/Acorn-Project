@@ -113,24 +113,42 @@ func createTagsTable() error {
 }
 
 // TODO: make this able to handle more than one component per tag (i.e. if tags return multiple components)
-func keywordAsk(n string) (t tagInfo) {
-	var err error
+func keywordAsk(n string) (retTags []tagInfo) {
+	var t tagInfo
 	t.name = n
 	var (
-		componentID string
-		anchorID    string
+		componentID int
+		anchorID    int
+		rows        *sql.Rows
+		err         error
 	)
-	err = db.QueryRow("SELECT component_id from tags WHERE tag=$1", n).Scan(&componentID)
+
+	//	err = db.QueryRow("SELECT component_id from tags WHERE tag=$1", n).Scan(&componentID)
+	//	if err != nil {
+	//		log.Fatal(err) // TODO: go ahead and exit if tag does exist
+	//	}
+	rows, err = db.Query("SELECT component_id FROM tags WHERE tag=$1", n)
 	if err != nil {
-		log.Fatal(err) // TODO: go ahead and exit if tag does exist
+		log.Error("problem selecting component_id from DB")
+		log.Fatal(err)
 	}
-	err = db.QueryRow("SELECT component,anchor_id,slack_channel,playbook FROM components WHERE id=$1", componentID).Scan(&t.component, &anchorID, &t.slackChannelID, &t.playbook)
-	if err != nil {
-		log.Fatal(err) // TODO: THIS SHOULD NOT EVER CAUSE AN ISSUE - make sure component exists created when a tag gets created
-	}
-	err = db.QueryRow("SELECT anchor_slack FROM anchors WHERE id=$1", anchorID).Scan(&t.anchor)
-	if err != nil {
-		log.Fatal(err) // TODO: see note above - anchors are mandatory field in component
+	defer rows.Close()
+	for rows.Next() {
+		err := rows.Scan(&componentID)
+		if err != nil {
+			log.Error("problem scanning component ID")
+			log.Fatal(err)
+		}
+		err = db.QueryRow("SELECT component,anchor_id,slack_channel,playbook FROM components WHERE id=$1", componentID).Scan(&t.component, &anchorID, &t.slackChannelID, &t.playbook) //TODO: edit if we restruct components table to use slackchan as comp ID
+
+		if err != nil {
+			log.Fatal(err) // THIS SHOULD NOT EVER CAUSE AN ISSUE - make sure component exists created when a tag gets created
+		}
+		err = db.QueryRow("SELECT anchor_slack FROM anchors WHERE id=$1", anchorID).Scan(&t.anchor)
+		if err != nil {
+			log.Fatal(err) // see note above - anchors are mandatory field in component
+		}
+		retTags = append(retTags, t)
 	}
 	return
 }

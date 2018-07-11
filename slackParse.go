@@ -38,17 +38,27 @@ type response struct {
 // regex definitions
 
 var (
-	askHelp    = regexp.MustCompile(`^(?i)help[\?]?$`)
-	askKeyword = regexp.MustCompile(`^(?i)keyword[s]?[\:]?$`)
+	regHelp = regexp.MustCompile(`^(?i)help[\?]?$`)
+	regTags = regexp.MustCompile(`^(?i)tag[s]?[\:]?$`)
+	regAdd  = regexp.MustCompile(`(?i)add$`)
+)
+
+const (
+	baseHelp = iota
+	tagsHelp
+	addHelp
 )
 
 // posts a help message on user join
 func postHelpJoin(ev *slack.MemberJoinedChannelEvent) error {
 	message := `Hi! It looks like this is your first time joining this channel.
 Please follow this guide for getting help from the bot:
-type "keyword: [keyword]" to see playbooks, appropriate channels, and the anchor associated with this topic
-type "anchor: [keyword]" to see the anchor and channel in charge of a product
-type "help" in this channel to see this message again at any time`
+
+type _tag: [keyword]_ to see the component, playbooks, appropriate channels, and the anchor associated with this tag
+
+type _anchor: [component]_ to see the anchor and channel in charge of a product component 
+
+type _help_ in this channel to see this message again at any time`
 
 	r := response{message, ev.User, ev.Channel, true, false, ""}
 	err := slackPrint(r)
@@ -59,11 +69,30 @@ type "help" in this channel to see this message again at any time`
 }
 
 // posts a general help message on user asking for help in channel
-func postHelp(ev *slack.MessageEvent) error {
-	message := `Please follow this guide for getting help from the bot:
-type "keyword: [keyword]" to see playbooks, appropriate channels, and the anchor associated with this topic
-type "anchor: [keyword]" to see the anchor and channel in charge of a product
-type "help" in this channel to see this message again at any time`
+func postHelp(ev *slack.MessageEvent, kind int) error {
+	var message string
+	switch {
+	case kind == baseHelp:
+		message = `type _tag: [keyword]_ to see component, playbooks, appropriate channels, and the anchor associated with this tag
+
+type _anchor: [component]_ to see the anchor and channel in charge of a product
+
+type _help_ in this channel to see this message again at any time
+
+type _help tags_ for further information about adding tags
+
+type _help add_ for help adding other details to the database`
+	case kind == tagsHelp:
+		message = `To add tags to the bot, use the following syntax:
+	
+_@[bot] tag [keyword] as [component name]_
+
+Only anchors can add tags. To see a list of valid component names type:
+_@[bot] list components_`
+
+	case kind == addHelp:
+		message = `Adding other items to the database is still in development. Check back later`
+	}
 
 	r := response{message, ev.User, ev.Channel, true, false, ""}
 	err := slackPrint(r)
@@ -97,15 +126,15 @@ func parse(ev *slack.MessageEvent) (err error) {
 // the message is not deemed some other "type" of interation - like a command to the bot
 func handleWord(ev *slack.MessageEvent, words []string) (err error) {
 	switch {
-	case askHelp.MatchString(words[0]):
+	case regHelp.MatchString(words[0]):
 		log.Debug("handling a help message")
 		handleHelp(ev, words)
-	case askKeyword.MatchString(words[0]):
-		log.Debug("Handling a keyword message")
+	case regTags.MatchString(words[0]):
+		log.Debug("Handling a tag message")
 		if len(words) > 1 {
 			handleKeywords(ev, words)
 		} else {
-			postHelp(ev)
+			postHelp(ev, baseHelp)
 		}
 		// TODO add SC integration and allow cases to be passed
 		/*		case askCase.MatchString(words[0]):
@@ -121,22 +150,41 @@ func handleWord(ev *slack.MessageEvent, words []string) (err error) {
 // Handles help requests  TODO: Add help for adding to database, etc
 
 func handleHelp(ev *slack.MessageEvent, words []string) error {
-	if len(words) == 1 {
-		postHelp(ev)
-	} // TODO add helps for adding to database
+	switch {
+	case len(words) == 1:
+		postHelp(ev, baseHelp)
+	case len(words) > 1 && regTags.MatchString(words[1]):
+		postHelp(ev, tagsHelp)
+	case len(words) > 1 && regAdd.MatchString(words[1]):
+		postHelp(ev, addHelp)
+	}
+
 	return nil
 }
 
-// handlesKeywords passed via the "keyword" option
+// handlesKeywords passed via the "tag" option
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	// TODO: handle the printing better
-	var t tagInfo
+	var tags []tagInfo
+	var responses []string
+	var s string
+	var r response
 	for i := 1; i < len(words); i++ {
-		t = keywordAsk(words[i])
-		s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s", t.name, t.anchor, t.component, t.slackChannelID, t.playbook)
-		var r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
-		slackPrint(r)
+		tags = keywordAsk(words[i])
+		fmt.Printf("%v\n", tags)
+		if len(tags) == 0 {
+			s = fmt.Sprintf("There are no components associated with the tag %s - please contact an anchor if you believe this tag should be added", words[i])
+			responses = append(responses, s)
+		} else {
+			for _, tag := range tags {
+				s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s\n", tag.name, tag.anchor, tag.component, tag.slackChannelID, tag.playbook)
+				responses = append(responses, s)
+			}
+		}
 	}
+	s = strings.Join(responses[:], " ")
+	r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
+	slackPrint(r)
 	return nil
 }
 
@@ -147,7 +195,22 @@ func handleCase(ev *slack.MessageEvent, words []string) error {
 
 // Commands directed at the bot
 func handleCommand(ev *slack.MessageEvent, words []string) error {
+	switch {
+	case regTags.MatchString(words[1]):
+		if len(words) < 5 {
+			postHelp(ev, tagsHelp)
+		} //TODO complete this
+	case regAdd.MatchString(words[1]):
+		switch {
+		case len(words) < 5:
+			postHelp(ev, addHelp)
+		case words[2] == "component":
+			postHelp(ev, addHelp) // TODO finish building matrix/DB to add component
+		case words[4] == "as":
+			postHelp(ev, addHelp) // TODO finish building matrix/DB to add anchor
+		}
 
+	}
 	return nil
 }
 
