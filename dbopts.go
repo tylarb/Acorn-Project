@@ -1,132 +1,126 @@
 /*
 Contains database operations for the bot.
 
-
 Released under MIT license, copyright 2018 Tyler Ramer
-
 */
 package main
 
 import (
 	"database/sql"
 
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
+
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
 
-// Table creation SQL strings
-const (
-	componentsTable = "CREATE TABLE IF NOT EXISTS components(id SERIAL PRIMARY KEY, component VARCHAR(20), slack_channel VARCHAR(10), playbook VARCHAR(30), anchor_id INT)"
-	anchorsTable    = "CREATE TABLE IF NOT EXISTS anchors(id SERIAL PRIMARY KEY, anchor_slack VARCHAR(20), salesforceID VARCHAR(30), name VARCHAR(50)) "
-	tagsTable       = "CREATE TABLE IF NOT EXISTS tags(id SERIAL PRIMARY KEY, tag VARCHAR(20), component_id INT)"
-)
+type Component struct {
+	ID           int
+	Anchor       int
+	name         string `gorm:"type:varchar(20)"`
+	Playbook     string `gorm:"type:varchar(30)"`
+	SlackChannel string `gorm:"type:varchar(10)"`
+}
+
+type Anchor struct {
+	ID           int
+	name         string `gorm:"type:varchar(30)"`
+	SalesforceID string `gorm:"type:varchar(30)"`
+	SlackID      string `gorm:"type:varchar(20)"`
+}
+
+type Tag struct {
+	ID         int
+	name       string      `gorm:"type:varchar(20)"`
+	components []Component `gorm:"many2many:TagComponent;"`
+}
 
 // TODO: make sure this makes sense
 type tagInfo struct {
-	name           string
 	anchor         string
 	component      string
-	slackChannelID string
+	name           string
 	playbook       string
+	slackChannelID string
 }
 
-// Define a global db connection. We don't need to close the db conn - if there's an error we'll try
-// to recreate the db connection, but otherwise we don't intend to trash it
-var db *sql.DB
+var db *gorm.DB
 
-// Connect to the DB and test the connection. Because we're using a global DB connection, and because
+// dbConnect connects to the database definied Connect to the DB and test the connection. Because we're using a global DB connection, and because
 // database/sql will retry the connection for us, we should only use this to initialize the db connection
-func dbConnect() *sql.DB {
-	var err error
-	db, err = sql.Open("postgres", conStr)
+func dbConnect() *gorm.DB {
+	db, err := gorm.Open("postgres", conStr)
 	if err != nil {
 		log.Fatal(err)
+		// FIXME: Do we want to panic in this scenario? Also in checkTables().
+		// panic("failed to connect database")
 	}
-	err = db.Ping()
-	if err != nil {
-		log.Error("Trouble connecting to the database, shutting down")
-		log.Fatal(err)
-	}
+
 	log.WithField("conStr", conStr).Info("Successfully connected to a postgres DB")
-	// TODO create relevant tables and check them
-	//	checkTables()
 	return db
 }
 
-// confirm all database tables exist and exit if they don't try to create them
+// CheckTables confirm all database tables exist and exit if they don't try to create them
 func checkTables() error {
 
-	var result string
+	// FIXME: Can we replace this logic with GORM autoMigrate function and handle errors?
+	// Automigrate will only create the tables if they do not exist and will also create new columns that did not exist
+	// before, but it will never drop columns that no longer exist
+	// db.AutoMigrate(&Anchor{}, &Component{}, &Tag{})
+
 	var err error
-	err = db.QueryRow("SELECT 1 FROM components LIMIT 1").Scan(&result)
 
-	if err != nil {
-		log.Error("Could not select from component table, will attempt to create it now")
-		err = createComponentsTable()
+	if !db.HasTable(&Anchor{}) {
+		log.Error("Anchors table does not exist, will attempt to create it now")
+		if err := db.CreateTable(&Anchor{}).Error; err != nil {
+			log.Error("Failed to create anchors table")
+			// FIXME: We are printing err multiple times as this is printed again in SupportBot.go:68
+			log.Fatal(err)
+		}
 	}
-	err = db.QueryRow("SELECT 1 from anchors LIMIT 1").Scan(&result)
 
-	if err != nil {
-		log.Error("Could not select from anchor table, will attempt to create it now")
-		err = createAnchorsTable()
+	// FIXME: does hasTable throw an error if the table is not found?
+	if !db.HasTable(&Component{}) {
+		log.Error("Components table does not exist, will attempt to create it now")
+		if err := db.CreateTable(&Component{}).Error; err != nil {
+			log.Error("Failed to create components table")
+			log.Fatal(err)
+		}
 	}
-	err = db.QueryRow("SELECT 1 from tags LIMIT 1").Scan(&result)
 
-	if err != nil {
-		log.Error("Could not select from tags table, will attempt to create it now")
-		err = createTagsTable()
+	if !db.HasTable(&Tag{}) {
+		log.Error("Tags table does not exist, will attempt to create it now")
+		if err := db.CreateTable(&Tag{}).Error; err != nil {
+			log.Error("Failed to create tags table")
+			log.Fatal(err)
+		}
 	}
+
+	if !db.HasTable("TagComponent") {
+		log.Error("TagComponent table does not exist, will attempt to create it now")
+		if err := db.CreateTable("TagComponent").Error; err != nil {
+			log.Error("Failed to create tag-component table")
+			log.Fatal(err)
+		}
+	}
+
 	return err
 }
 
-// creates the "components" table in database
-func createComponentsTable() error {
-	_, err := db.Exec(componentsTable)
-	if err != nil {
-		log.Error("Problem creating components table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created components table")
-	return nil
-}
-
-// creates the "anchors" table in database
-func createAnchorsTable() error {
-	_, err := db.Exec(anchorsTable)
-	if err != nil {
-		log.Error("Problem creating anchors table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created anchors table")
-	return nil
-}
-
-// creates the "tags" table in database
-func createTagsTable() error {
-	_, err := db.Exec(tagsTable)
-	if err != nil {
-		log.Error("Problem creating tags table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created tags table")
-	return nil
-}
-
-// TODO: make this able to handle more than one component per tag (i.e. if tags return multiple components)
+// FIXME: make this able to handle more than one component per tag (i.e. if tags return multiple component)
+// this should be easy with the many2many relationship defined in the Tag struct
 func keywordAsk(n string) (retTags []tagInfo) {
-	var t tagInfo
-	t.name = n
 	var (
+		t           tagInfo
 		componentID int
 		anchorID    int
 		rows        *sql.Rows
 		err         error
 	)
 
-	//	err = db.QueryRow("SELECT component_id from tags WHERE tag=$1", n).Scan(&componentID)
-	//	if err != nil {
-	//		log.Fatal(err) // TODO: go ahead and exit if tag does exist
-	//	}
+	t.name = n
+
 	rows, err = db.Query("SELECT component_id FROM tags WHERE tag=$1", n)
 	if err != nil {
 		log.Error("problem selecting component_id from DB")
