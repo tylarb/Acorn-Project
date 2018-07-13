@@ -29,16 +29,16 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/nlopes/slack"
+  packages = ["."]
+  revision = "1a894400a36157b34f9887c4d8ded3c608b43ccd"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
   version = "v1.0.5"
-
-[[projects]]
-  branch = "reply-to"
-  name = "github.com/tylarb/slack"
-  packages = ["."]
-  revision = "b84d387afebc85759ae1e0729f54d1ceef3ff08c"
 
 [[projects]]
   branch = "master"
@@ -53,11 +53,11 @@
     "unix",
     "windows"
   ]
-  revision = "7138fd3d9dc8335c567ca206f4333fb75eb05d56"
+  revision = "1b2967e3c290b7c545b3db0deeda16e9be4f98a2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a72768eb3cd5c792bc039223b167c204210fac863e18e7f3c140fc739a3cd34b"
+  inputs-digest = "a63019daf0aed8d4778606df943181fce569d206b39d880be1a69b1bedde6b90"
   solver-name = "gps-cdcl"
   solver-version = 1

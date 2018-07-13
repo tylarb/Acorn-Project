@@ -26,8 +26,8 @@
 
 
 [[constraint]]
-  name = "github.com/tylarb/slack"
-  branch = "reply-to"
+  name = "github.com/nlopes/slack"
+  branch = "master"
 
 [prune]
   go-tests = true
