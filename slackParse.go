@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
-	"github.com/tylarb/slack"
 )
 
 type response struct {
@@ -218,9 +218,9 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 func slackPrint(r response) (err error) {
 	switch {
 	case r.isEphemeral:
-		_, err = postEphemeral(rtm, r.channel, r.user, r.message)
+		_, err = postEphemeral(r.channel, r.user, r.message)
 	default:
-		rtm.SendMessage(rtm.NewOutgoingMessage(r.message, r.channel, r.threadTS))
+		rtm.SendMessage(rtm.NewOutgoingMessage(r.message, r.channel, slack.RTMsgOptionTS(r.threadTS)))
 		err = nil
 	}
 	return

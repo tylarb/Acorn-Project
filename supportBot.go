@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-community/go-cfenv"
+	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
-	"github.com/tylarb/slack"
 )
 
 const serviceLable = "elephantsql"
@@ -154,7 +154,7 @@ func main() {
 }
 
 // Cleans up Ephemeral message posting, see issue: https://github.com/nlopes/slack/issues/191
-func postEphemeral(rtm *slack.RTM, channel, user, text string) (string, error) {
+func postEphemeral(channel, user, text string) (string, error) {
 	params := slack.PostMessageParameters{
 		AsUser: true,
 	}
