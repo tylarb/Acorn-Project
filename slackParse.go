@@ -56,7 +56,7 @@ Please follow this guide for getting help from the bot:
 
 type _tag: [keyword]_ to see the component, playbooks, appropriate channels, and the anchor associated with this tag
 
-type _anchor: [component]_ to see the anchor and channel in charge of a product component 
+type _anchor: [component]_ to see the anchor and channel in charge of a product component
 
 type _help_ in this channel to see this message again at any time`
 
@@ -84,7 +84,7 @@ type _help tags_ for further information about adding tags
 type _help add_ for help adding other details to the database`
 	case kind == tagsHelp:
 		message = `To add tags to the bot, use the following syntax:
-	
+
 _@[bot] tag [keyword] as [component name]_
 
 Only anchors can add tags. To see a list of valid component names type:
@@ -165,19 +165,19 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 // handlesKeywords passed via the "tag" option
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	// TODO: handle the printing better
-	var tags []tagInfo
+	var tags []TagInfo
 	var responses []string
 	var s string
 	var r response
 	for i := 1; i < len(words); i++ {
-		tags = keywordAsk(words[i])
+		tags = QueryTag(words[i])
 		fmt.Printf("%v\n", tags)
 		if len(tags) == 0 {
 			s = fmt.Sprintf("There are no components associated with the tag %s - please contact an anchor if you believe this tag should be added", words[i])
 			responses = append(responses, s)
 		} else {
 			for _, tag := range tags {
-				s := fmt.Sprintf("tag: %s, anchor: %s, component: %s, channel: %s, playbook: %s\n", tag.name, usrFormat(tag.anchor), tag.component, chanFormat(tag.slackChannelID), tag.playbook)
+				s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
 				responses = append(responses, s)
 			}
 		}
