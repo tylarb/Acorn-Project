@@ -14,10 +14,26 @@
   version = "v1.2.0"
 
 [[projects]]
+  name = "github.com/jinzhu/gorm"
+  packages = [
+    ".",
+    "dialects/postgres"
+  ]
+  revision = "6ed508ec6a4ecb3531899a69cbc746ccf65a4166"
+  version = "v1.9.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/jinzhu/inflection"
+  packages = ["."]
+  revision = "04140366298a54a039076d798123ffa108fff46c"
+
+[[projects]]
   branch = "master"
   name = "github.com/lib/pq"
   packages = [
     ".",
+    "hstore",
     "oid"
   ]
   revision = "90697d60dd844d5ef6ff15135d0203f65d2f53b8"
@@ -26,13 +42,13 @@
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
+  revision = "f15292f7a699fcc1a38a80977f80a046874ba8ac"
 
 [[projects]]
   branch = "master"
   name = "github.com/nlopes/slack"
   packages = ["."]
-  revision = "1a894400a36157b34f9887c4d8ded3c608b43ccd"
+  revision = "8ac1139f0b5b26ddb4a5c05b727e7ce155cc37f4"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -53,11 +69,11 @@
     "unix",
     "windows"
   ]
-  revision = "1b2967e3c290b7c545b3db0deeda16e9be4f98a2"
+  revision = "ac767d655b305d4e9612f5f6e33120b9176c4ad4"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a63019daf0aed8d4778606df943181fce569d206b39d880be1a69b1bedde6b90"
+  inputs-digest = "bb6931c7266f00774274540546cc4cd366d32fa02488c7fc116b7579377ee8d0"
   solver-name = "gps-cdcl"
   solver-version = 1

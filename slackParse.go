@@ -85,10 +85,9 @@ type _help add_ for help adding other details to the database`
 	case kind == tagsHelp:
 		message = `To add tags to the bot, use the following syntax:
 
-_@[bot] tag [keyword] as [component name]_
-
-Only anchors can add tags. To see a list of valid component names type:
-_@[bot] list components_`
+_@[bot] tag [#component-channel] [tag1], [tag2], ..._
+		
+Only anchors can add tags.`
 
 	case kind == addHelp:
 		message = `Adding other items to the database is still in development. Check back later`
@@ -165,13 +164,17 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 // handlesKeywords passed via the "tag" option
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	// TODO: handle the printing better
-	var tags []TagInfo
-	var responses []string
-	var s string
-	var r response
+	// TODO: Regex on keyword ignoring case and punctuation - two optoins here:
+	// 1.(ignore punc but don't trim) regex on keyword from database and match to user provided string (possible error if new tag CONTAINS keyword i.e. doc -> docs/documents/docker
+	// 2. (trim and match exact word) regex on user provided word and match to key from db.  <-- this looks preferable
+	var (
+		responses []string
+		s         string // Placeholder string for building a response
+		r         response
+		tags      []TagInfo
+	)
 	for i := 1; i < len(words); i++ {
-		tags = QueryTag(words[i])
-		fmt.Printf("%v\n", tags)
+		tags, _ = QueryTag(words[i]) // FIXME: - error is thrown away, but let's not do that
 		if len(tags) == 0 {
 			s = fmt.Sprintf("There are no components associated with the tag %s - please contact an anchor if you believe this tag should be added", words[i])
 			responses = append(responses, s)
@@ -195,11 +198,32 @@ func handleCase(ev *slack.MessageEvent, words []string) error {
 
 // Commands directed at the bot
 func handleCommand(ev *slack.MessageEvent, words []string) error {
+	r := response{user: ev.User, channel: ev.Channel, isEphemeral: true}
 	switch {
 	case regTags.MatchString(words[1]):
-		if len(words) < 5 {
+		if len(words) < 4 {
 			postHelp(ev, tagsHelp)
-		} //TODO complete this - Tag component Slack Chan as the ID - import ID to database via strings.Trim(c,"<>") then cut on | and accept first array value
+		} else { // TODO: clean this up
+			t := TagInfo{ComponentChan: chanTrim(words[2])}
+			count := 0
+			for i := 3; i < len(words); i++ {
+				t.Name = strings.Trim(words[i], ",")
+				if err := AddTag(t); err != nil {
+					if err == ErrNoComponent {
+						r.message = "This component is not in the database - please reach out to a member of the team to get your component added"
+						slackPrint(r)
+						break
+					} else {
+						log.Panic(err)
+					}
+				}
+				count++
+			}
+			if count != 0 {
+				r.message = fmt.Sprintf("Added %d tags to the component %s", count, words[2])
+				slackPrint(r)
+			}
+		}
 	case regAdd.MatchString(words[1]):
 		switch {
 		case len(words) < 5:
@@ -212,26 +236,4 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 
 	}
 	return nil
-}
-
-// Print messages to slack. Accepts response struct and returns any errors on the print
-func slackPrint(r response) (err error) {
-	switch {
-	case r.isEphemeral:
-		_, err = postEphemeral(r.channel, r.user, r.message)
-	default:
-		rtm.SendMessage(rtm.NewOutgoingMessage(r.message, r.channel, slack.RTMsgOptionTS(r.threadTS)))
-		err = nil
-	}
-	return
-}
-
-// formats the user string to make sure indidual gets tagged correctly in slack
-func usrFormat(u string) string {
-	return fmt.Sprintf("<@%s>", u)
-}
-
-// formats a channel ID to allow channel linking update to slack
-func chanFormat(c string) string {
-	return fmt.Sprintf("<#%s>", c)
 }

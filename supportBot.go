@@ -72,38 +72,6 @@ func init() {
 	}
 }
 
-func getBotID(botName string, sc *slack.Client) (botID string) {
-	users, err := sc.GetUsers()
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, user := range users {
-		if user.Name == botName {
-			log.WithFields(log.Fields{"ID": user.ID, "name": user.Name}).Info("Found bot:")
-			botID = user.ID
-			return
-		}
-	}
-	log.Fatal("Could not find a userID for the botID provided")
-	return
-}
-
-func getBotChannel(chanName string, sc *slack.Client) (chanID string) {
-	channels, err := sc.GetChannels(true)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, channel := range channels {
-		if channel.Name == chanName {
-			log.WithField("Channel ID", channel.ID).Info("Found channel")
-			chanID = channel.ID
-			return
-		}
-	}
-	log.Fatal("Could not find a channelID for the channel name provided")
-	return
-}
-
 func main() {
 	rand.Seed(time.Now().Unix())
 
@@ -151,18 +119,4 @@ func main() {
 
 	}
 
-}
-
-// Cleans up Ephemeral message posting, see issue: https://github.com/nlopes/slack/issues/191
-func postEphemeral(channel, user, text string) (string, error) {
-	params := slack.PostMessageParameters{
-		AsUser: true,
-	}
-	return rtm.PostEphemeral(
-		channel,
-		user,
-		slack.MsgOptionText(text, params.EscapeText),
-		slack.MsgOptionAttachments(params.Attachments...),
-		slack.MsgOptionPostMessageParameters(params),
-	)
 }

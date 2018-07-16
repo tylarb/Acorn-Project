@@ -22,32 +22,54 @@ package main
 // 2. Add data load method
 // 4. Add load tag into DB if not in cache
 
-// tagCache is just a hashmap of tags to tagInfo. Further methods are defined to ease use of the cache
-type tagCache struct {
-	tags  map[string]TagInfo
+// TagCache is just a hashmap of tags to tagInfo. Further methods are defined to ease use of the cache
+type TagCache struct {
+	tags  map[string][]TagInfo
 	count int
 }
 
 // Find gets the tagInfo associated with a tag
-func (cache *tagCache) Find(t string) TagInfo {
+func (cache *TagCache) Find(t string) []TagInfo {
 	return cache.tags[t]
-
 }
 
-// Contains returns true/false if the cache contains
-func (cache *tagCache) Contains(t string) bool {
+// Contains returns true/false if the cache contains the tag
+func (cache *TagCache) Contains(t string) bool {
 	_, ok := cache.tags[t]
 	return ok
 }
 
-// Add adds a tag + tagInfo to the cache
-func (cache *tagCache) Add(t string, tag TagInfo) {
+// Add adds a tag + TagInfo to the cache. If the tag is already in the cache, it adds
+// to the TagInfo array
+func (cache *TagCache) Add(t string, tag TagInfo) {
 	if cache.count == 0 || !cache.Contains(t) {
-		cache.tags[t] = tag
+		cache.tags[t] = []TagInfo{tag}
+		cache.count++
+		AddTag(tag)
+	} else {
+		cache.tags[t] = append(cache.tags[t], tag)
+		AddTag(tag)
 	}
 }
 
 // Drop removes a tag from the cache (probably not necessary for this use case)
-func (cache *tagCache) Drop(t string) {
+// Be aware that this currently removes ALL TagInfo from the cache related to the tag
+// FIXME: For consideration - should we remove a specific TagInfo? - Also should we drop from DB?
+func (cache *TagCache) Drop(t string) {
+	cache.count--
 	delete(cache.tags, t)
+}
+
+// Load adds all tags in the database to the cache
+// This should be called when the cache is first initialized
+func (cache *TagCache) Load() error {
+	// TODO: FINISH HIM
+	return nil
+}
+
+// NewTagCache returns a pointer to a tagCache with entries from the database loaded
+func NewTagCache() *TagCache {
+	var t = new(TagCache)
+	t.Load()
+	return t
 }
