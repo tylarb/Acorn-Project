@@ -1,154 +1,105 @@
 /*
-Contains database operations for the bot.
+dbopts.go contains database operations for the bot.
 
+We contemplate three data models: anchor, component and tag. The TagInfo struct
+is used to bundle the response information that will be displayed by slackParse
+logic.
 
-Released under MIT license, copyright 2018 Tyler Ramer
-
+Released under MIT license, copyright 2018 Tyler Ramer, Ignacio Elizaga
 */
 package main
 
 import (
-	"database/sql"
-
-	_ "github.com/lib/pq"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	log "github.com/sirupsen/logrus"
 )
 
-// Table creation SQL strings
-const (
-	componentsTable = "CREATE TABLE IF NOT EXISTS components(id SERIAL PRIMARY KEY, component VARCHAR(20), slack_channel VARCHAR(10), playbook VARCHAR(30), anchor_id INT)"
-	anchorsTable    = "CREATE TABLE IF NOT EXISTS anchors(id SERIAL PRIMARY KEY, anchor_slack VARCHAR(20), salesforceID VARCHAR(30), name VARCHAR(50)) "
-	tagsTable       = "CREATE TABLE IF NOT EXISTS tags(id SERIAL PRIMARY KEY, tag VARCHAR(20), component_id INT)"
-)
-
-// TODO: make sure this makes sense
-type tagInfo struct {
-	name           string
-	anchor         string
-	component      string
-	slackChannelID string
-	playbook       string
+// Component is the database representation of a component
+type Component struct {
+	ID            int
+	AnchorSlackID string `gorm:"type:varchar(20)"`
+	PlaybookURL   string `gorm:"type:varchar(30)"`
+	ComponentChan string `gorm:"type:varchar(20)"`
 }
 
-// Define a global db connection. We don't need to close the db conn - if there's an error we'll try
-// to recreate the db connection, but otherwise we don't intend to trash it
-var db *sql.DB
+// Tag is the database representation of a tag
+type Tag struct {
+	ID         int
+	Name       string      `gorm:"type:varchar(20)"`
+	Components []Component `gorm:"many2many:tag_components;"`
+}
 
-// Connect to the DB and test the connection. Because we're using a global DB connection, and because
-// database/sql will retry the connection for us, we should only use this to initialize the db connection
-func dbConnect() *sql.DB {
+// TagInfo is the response structure when a tag query is made
+type TagInfo struct {
+	Anchor        string
+	Name          string
+	PlaybookURL   string
+	ComponentChan string
+}
+
+// FIXME: This project structure might become hard to maintain as our database
+// models grow, we might want to store each model and related database logic in
+// a different file. That would add complexity to the code on the other side.
+
+var db *gorm.DB
+
+// InitDB creates the connection to the database specified in conStr and stores
+// it in the db local variable
+func InitDB() {
 	var err error
-	db, err = sql.Open("postgres", conStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = db.Ping()
+	db, err = gorm.Open("postgres", conStr)
 	if err != nil {
 		log.Error("Trouble connecting to the database, shutting down")
 		log.Fatal(err)
 	}
-	log.WithField("conStr", conStr).Info("Successfully connected to a postgres DB")
-	// TODO create relevant tables and check them
-	//	checkTables()
-	return db
+	log.WithField("conStr", conStr).Info("connected to the database")
 }
 
-// confirm all database tables exist and exit if they don't try to create them
-func checkTables() error {
-
-	var result string
+// MigrateDB performs a database migration from scratch for any of the db tables
+// if they don't exist. This does not include ddl changes in existing tables
+func MigrateDB() error {
 	var err error
-	err = db.QueryRow("SELECT 1 FROM components LIMIT 1").Scan(&result)
-
-	if err != nil {
-		log.Error("Could not select from component table, will attempt to create it now")
-		err = createComponentsTable()
-	}
-	err = db.QueryRow("SELECT 1 from anchors LIMIT 1").Scan(&result)
-
-	if err != nil {
-		log.Error("Could not select from anchor table, will attempt to create it now")
-		err = createAnchorsTable()
-	}
-	err = db.QueryRow("SELECT 1 from tags LIMIT 1").Scan(&result)
-
-	if err != nil {
-		log.Error("Could not select from tags table, will attempt to create it now")
-		err = createTagsTable()
+	if err = db.AutoMigrate(&Component{}, &Tag{}).Error; err != nil {
+		log.Error("the migration has failed")
+		log.Fatal(err)
 	}
 	return err
 }
 
-// creates the "components" table in database
-func createComponentsTable() error {
-	_, err := db.Exec(componentsTable)
-	if err != nil {
-		log.Error("Problem creating components table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created components table")
-	return nil
-}
+// QueryTag scans the database for a given tag name and returns a slice of
+// TagInfo objects
+func QueryTag(n string) (retTags []TagInfo) {
+	t := TagInfo{}
+	tag := Tag{}
+	components := []Component{}
 
-// creates the "anchors" table in database
-func createAnchorsTable() error {
-	_, err := db.Exec(anchorsTable)
-	if err != nil {
-		log.Error("Problem creating anchors table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created anchors table")
-	return nil
-}
-
-// creates the "tags" table in database
-func createTagsTable() error {
-	_, err := db.Exec(tagsTable)
-	if err != nil {
-		log.Error("Problem creating tags table")
-		log.Fatal(err)
-	}
-	log.Info("Successfully created tags table")
-	return nil
-}
-
-// TODO: make this able to handle more than one component per tag (i.e. if tags return multiple components)
-func keywordAsk(n string) (retTags []tagInfo) {
-	var t tagInfo
-	t.name = n
-	var (
-		componentID int
-		anchorID    int
-		rows        *sql.Rows
-		err         error
-	)
-
-	//	err = db.QueryRow("SELECT component_id from tags WHERE tag=$1", n).Scan(&componentID)
-	//	if err != nil {
-	//		log.Fatal(err) // TODO: go ahead and exit if tag does exist
-	//	}
-	rows, err = db.Query("SELECT component_id FROM tags WHERE tag=$1", n)
-	if err != nil {
-		log.Error("problem selecting component_id from DB")
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		err := rows.Scan(&componentID)
-		if err != nil {
-			log.Error("problem scanning component ID")
-			log.Fatal(err)
+	// query the tag
+	if err := db.Where("Name = ?", n).First(&tag).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			log.WithField("tag", n).Error("tag not found")
+			// TODO:  we can add some logic to this and ask the user to notify an
+			// anchor
+			return
 		}
-		err = db.QueryRow("SELECT component,anchor_id,slack_channel,playbook FROM components WHERE id=$1", componentID).Scan(&t.component, &anchorID, &t.slackChannelID, &t.playbook) //TODO: edit if we restruct components table to use slackchan as comp ID
+		log.Error("an error ocurred querying the database for tag")
+		log.Fatal(err)
+	}
 
-		if err != nil {
-			log.Fatal(err) // THIS SHOULD NOT EVER CAUSE AN ISSUE - make sure component exists created when a tag gets created
-		}
-		err = db.QueryRow("SELECT anchor_slack FROM anchors WHERE id=$1", anchorID).Scan(&t.anchor)
-		if err != nil {
-			log.Fatal(err) // see note above - anchors are mandatory field in component
-		}
+	// query the components associated with the tag
+	if err := db.Model(&tag).Association("Components").Find(&components).Error; err != nil {
+		log.Error("an error ocurred querying the database for components associated with tag")
+		log.Fatal(err)
+	}
+
+	t.Name = n
+	for _, component := range components {
+		t.Anchor = component.AnchorSlackID
+		t.ComponentChan = component.ComponentChan
+		t.PlaybookURL = component.PlaybookURL
 		retTags = append(retTags, t)
 	}
+	log.WithField("retTags[]", retTags).Info("tag information found")
+
 	return
 }

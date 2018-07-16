@@ -64,8 +64,8 @@ func init() {
 	if !ok {
 		log.Fatal("Could not find database URI")
 	}
-	dbConnect()
-	err = checkTables()
+	InitDB()
+	err = MigrateDB()
 	if err != nil {
 		log.Error("Could not query tables and had a problem creating them successfully, closing")
 		log.Fatal(err)

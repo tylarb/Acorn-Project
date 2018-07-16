@@ -24,12 +24,12 @@ package main
 
 // tagCache is just a hashmap of tags to tagInfo. Further methods are defined to ease use of the cache
 type tagCache struct {
-	tags  map[string]tagInfo
+	tags  map[string]TagInfo
 	count int
 }
 
 // Find gets the tagInfo associated with a tag
-func (cache *tagCache) Find(t string) tagInfo {
+func (cache *tagCache) Find(t string) TagInfo {
 	return cache.tags[t]
 
 }
@@ -41,7 +41,7 @@ func (cache *tagCache) Contains(t string) bool {
 }
 
 // Add adds a tag + tagInfo to the cache
-func (cache *tagCache) Add(t string, tag tagInfo) {
+func (cache *tagCache) Add(t string, tag TagInfo) {
 	if cache.count == 0 || !cache.Contains(t) {
 		cache.tags[t] = tag
 	}
