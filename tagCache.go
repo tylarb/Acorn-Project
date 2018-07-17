@@ -17,6 +17,12 @@ if cache.Contains(tag) {
 
 package main
 
+import (
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+)
+
 // TODO:
 // 1. Add support for tag going to multiple components
 // 2. Add data load method
@@ -30,26 +36,57 @@ type TagCache struct {
 
 // Find gets the tagInfo associated with a tag
 func (cache *TagCache) Find(t string) []TagInfo {
-	return cache.tags[t]
+	return cache.tags[strings.ToLower(t)]
 }
 
-// Contains returns true/false if the cache contains the tag
-func (cache *TagCache) Contains(t string) bool {
-	_, ok := cache.tags[t]
+// ContainsTag returns bool if the cache contains the tag
+func (cache *TagCache) ContainsTag(t string) bool {
+	_, ok := cache.tags[strings.ToLower(t)]
 	return ok
 }
 
-// Add adds a tag + TagInfo to the cache. If the tag is already in the cache, it adds
-// to the TagInfo array
-func (cache *TagCache) Add(t string, tag TagInfo) {
-	if cache.count == 0 || !cache.Contains(t) {
-		cache.tags[t] = []TagInfo{tag}
-		cache.count++
-		AddTag(tag)
-	} else {
-		cache.tags[t] = append(cache.tags[t], tag)
-		AddTag(tag)
+// ContainsTagInfo returns bool if the cache contains the specific TagInfo
+//
+func (cache *TagCache) ContainsTagInfo(t TagInfo) bool {
+	if cache.ContainsTag(t.Name) {
+		for _, tag := range cache.tags[t.Name] {
+			if tag.ComponentChan == t.ComponentChan {
+				return true
+			}
+		}
 	}
+	return false
+}
+
+// Add adds a tag + TagInfo to the cache. If the tag is already in the cache, it adds
+// to the TagInfo array. Handles lowering strings as well
+func (cache *TagCache) Add(t TagInfo) error {
+	var err error
+	t.Name = strings.ToLower(t.Name)
+	if cache.count == 0 || !cache.ContainsTag(t.Name) {
+		if err := AddTag(t); err != nil {
+			if err == ErrNoComponent {
+				return err
+			}
+			log.Panic(err)
+		}
+		cache.tags[t.Name], err = QueryTag(t.Name)
+		cache.count++
+	} else {
+		if err := AddTag(t); err != nil {
+			if err == ErrNoComponent {
+				return err
+			}
+			log.Panic(err)
+		}
+		cache.tags[t.Name], err = QueryTag(t.Name)
+	}
+	if err != nil {
+		log.Error("Error fetching tag data from the DB. There may be a discrepancy between the cache and the db")
+		log.Panic(err)
+	}
+	return nil
+
 }
 
 // Drop removes a tag from the cache (probably not necessary for this use case)
@@ -62,14 +99,14 @@ func (cache *TagCache) Drop(t string) {
 
 // Load adds all tags in the database to the cache
 // This should be called when the cache is first initialized
-func (cache *TagCache) Load() error {
-	// TODO: FINISH HIM
-	return nil
+func (cache *TagCache) Load() {
+	cache.tags, cache.count = GetAllTags()
 }
 
 // NewTagCache returns a pointer to a tagCache with entries from the database loaded
 func NewTagCache() *TagCache {
 	var t = new(TagCache)
-	t.Load()
+	t.tags = make(map[string][]TagInfo)
+	t.Load() //TODO: Consider adding counter for how long it takes to load the cache? Consider concurrently loading?
 	return t
 }

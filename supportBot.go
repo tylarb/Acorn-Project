@@ -33,13 +33,15 @@ var (
 	chanID          string
 )
 
-// The slack client and RTM messaging are used as an out - rather than passing
-// the SC to each function, define it globally to ease accessed. We do handle
+// The slack client and RTM messaging are used as a stdout - rather than passing
+// the SC to each function, define it globally to ease accessed. We do handle init
 // errors in the main function, however
+// The TagCache is similarly globally defined for convinience
 
 var (
-	sc  *slack.Client
-	rtm *slack.RTM
+	sc    *slack.Client
+	rtm   *slack.RTM
+	cache *TagCache
 )
 
 // log levels, see logrus docs
@@ -70,6 +72,9 @@ func init() {
 		log.Error("Could not query tables and had a problem creating them successfully, closing")
 		log.Fatal(err)
 	}
+	log.Debug("Starting cache load")
+	cache = NewTagCache()
+	log.Debug("Finished loading cache")
 }
 
 func main() {
@@ -91,6 +96,9 @@ func main() {
 			log.WithFields(log.Fields{"Connection Counter:": ev.ConnectionCount, "Infos": ev.Info})
 		case *slack.MessageEvent:
 			log.WithFields(log.Fields{"Channel": ev.Channel, "message": ev.Text}).Debug("message event:")
+			if ev.Text == "" {
+				continue
+			}
 			// send message to parser func
 			err := parse(ev)
 			if err != nil {

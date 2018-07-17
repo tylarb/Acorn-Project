@@ -43,64 +43,6 @@ var (
 	regAdd  = regexp.MustCompile(`(?i)add$`)
 )
 
-const (
-	baseHelp = iota
-	tagsHelp
-	addHelp
-)
-
-// posts a help message on user join
-func postHelpJoin(ev *slack.MemberJoinedChannelEvent) error {
-	message := `Hi! It looks like this is your first time joining this channel.
-Please follow this guide for getting help from the bot:
-
-type _tag: [keyword]_ to see the component, playbooks, appropriate channels, and the anchor associated with this tag
-
-type _anchor: [component]_ to see the anchor and channel in charge of a product component
-
-type _help_ in this channel to see this message again at any time`
-
-	r := response{message, ev.User, ev.Channel, true, false, ""}
-	err := slackPrint(r)
-	if err != nil {
-		log.Error("error printing to Slack")
-	}
-	return err
-}
-
-// posts a general help message on user asking for help in channel
-func postHelp(ev *slack.MessageEvent, kind int) error {
-	var message string
-	switch {
-	case kind == baseHelp:
-		message = `type _tag: [keyword]_ to see component, playbooks, appropriate channels, and the anchor associated with this tag
-
-type _anchor: [component]_ to see the anchor and channel in charge of a product
-
-type _help_ in this channel to see this message again at any time
-
-type _help tags_ for further information about adding tags
-
-type _help add_ for help adding other details to the database`
-	case kind == tagsHelp:
-		message = `To add tags to the bot, use the following syntax:
-
-_@[bot] tag [#component-channel] [tag1], [tag2], ..._
-		
-Only anchors can add tags.`
-
-	case kind == addHelp:
-		message = `Adding other items to the database is still in development. Check back later`
-	}
-
-	r := response{message, ev.User, ev.Channel, true, false, ""}
-	err := slackPrint(r)
-	if err != nil {
-		log.Error("error printing to Slack")
-	}
-	return err
-}
-
 // parses all messagess from slack for special commands or karma events
 func parse(ev *slack.MessageEvent) (err error) {
 	var atBot = fmt.Sprintf("<@%s>", botID)
@@ -108,7 +50,7 @@ func parse(ev *slack.MessageEvent) (err error) {
 		log.Debug("Slackbot sent a message which is ignored")
 		return nil
 	}
-	words := strings.Split(ev.Text, " ")
+	words := strings.Fields(ev.Text)
 	switch {
 	case words[0] == atBot:
 		log.WithField("Message", ev.Text).Debug("Instuction for bot")
@@ -171,21 +113,22 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		responses []string
 		s         string // Placeholder string for building a response
 		r         response
-		tags      []TagInfo
+		count     int
 	)
 	for i := 1; i < len(words); i++ {
-		tags, _ = QueryTag(words[i]) // FIXME: - error is thrown away, but let's not do that
-		if len(tags) == 0 {
-			s = fmt.Sprintf("There are no components associated with the tag %s - please contact an anchor if you believe this tag should be added", words[i])
-			responses = append(responses, s)
-		} else {
-			for _, tag := range tags {
+		if cache.ContainsTag(words[i]) {
+			for _, tag := range cache.Find(words[i]) {
 				s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
 				responses = append(responses, s)
+				count++
 			}
 		}
 	}
-	s = strings.Join(responses[:], " ")
+	if count == 0 {
+		s = noRelevantTag
+	} else {
+		s = strings.Join(responses[:], "\n")
+	}
 	r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
 	slackPrint(r)
 	return nil
@@ -203,26 +146,29 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 	case regTags.MatchString(words[1]):
 		if len(words) < 4 {
 			postHelp(ev, tagsHelp)
-		} else { // TODO: clean this up
-			t := TagInfo{ComponentChan: chanTrim(words[2])}
-			count := 0
-			for i := 3; i < len(words); i++ {
-				t.Name = strings.Trim(words[i], ",")
-				if err := AddTag(t); err != nil {
+			return nil
+		} // TODO: clean this up
+		tag := TagInfo{ComponentChan: chanTrim(words[2])}
+		count := 0
+		for i := 3; i < len(words); i++ {
+			tag.Name = strings.Trim(words[i], ",")
+			if !cache.ContainsTagInfo(tag) {
+				if err := cache.Add(tag); err != nil {
 					if err == ErrNoComponent {
-						r.message = "This component is not in the database - please reach out to a member of the team to get your component added"
+						r.message = noComponentInDB
 						slackPrint(r)
 						break
-					} else {
-						log.Panic(err)
 					}
 				}
 				count++
-			}
-			if count != 0 {
-				r.message = fmt.Sprintf("Added %d tags to the component %s", count, words[2])
+			} else {
+				r.message = fmt.Sprintf(alreadyAdded, tag.Name)
 				slackPrint(r)
 			}
+		}
+		if count != 0 {
+			r.message = fmt.Sprintf("Added %d tags to the component %s", count, words[2])
+			slackPrint(r)
 		}
 	case regAdd.MatchString(words[1]):
 		switch {

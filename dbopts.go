@@ -108,6 +108,43 @@ func QueryTag(n string) (retTags []TagInfo, err error) {
 	return
 }
 
+// GetAllTags retrives all tags in the database into a map for use in the cache
+func GetAllTags() (tagMap map[string][]TagInfo, size int) {
+	var (
+		t          TagInfo
+		tags       []Tag
+		components []Component
+	)
+	tagMap = make(map[string][]TagInfo)
+
+	if err := db.Find(&tags).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			log.Info("Currently no tags to load from the database")
+			return nil, 0
+		}
+		log.Panic(err)
+	}
+	for _, tag := range tags {
+		if err := db.Model(&tag).Association("Components").Find(&components).Error; err != nil {
+			log.Error("An error occured querying the database for components associated with a tag")
+			log.Panic(err)
+		}
+		var retTags []TagInfo
+		t.Name = tag.Name
+		for _, component := range components {
+			t.Anchor = component.AnchorSlackID
+			t.ComponentChan = component.ComponentChan
+			t.PlaybookURL = component.PlaybookURL
+			retTags = append(retTags, t)
+		}
+		tagMap[t.Name] = retTags
+		log.WithFields(log.Fields{"name": t.Name, "tagInfo": retTags}).Debug("tag information retrieved from database")
+	}
+	size = len(tags)
+	log.WithField("number", size).Info("Tags returned from the database")
+	return
+}
+
 // AddTag adds a component tag to the database
 // Note: in usage, query the cache for a tag before going to DB; thus, checking if tag
 // entry already exists should not be an issue here

@@ -16,6 +16,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// getBotChannel gets a userID from a username provided as a string. This is easy to provide as a startup option or env variable.
+// For further consideration - can this be done using ONLY a token?
 func getBotID(botName string, sc *slack.Client) (botID string) {
 	users, err := sc.GetUsers()
 	if err != nil {
@@ -32,6 +34,7 @@ func getBotID(botName string, sc *slack.Client) (botID string) {
 	return
 }
 
+// getBotChannel gets a chanID from a channel name provided as a string. This is easy to provide as a startup option or env variable.
 func getBotChannel(chanName string, sc *slack.Client) (chanID string) {
 	channels, err := sc.GetChannels(true)
 	if err != nil {
