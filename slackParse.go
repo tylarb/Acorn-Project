@@ -126,6 +126,11 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	}
 	if count == 0 {
 		s = noRelevantTag
+		// tag exact match not found -> fuzzy search
+		// 1. get all tags in the cache/database
+		// 2. apply levenshtein distance to them
+		// 3. call QueryTag with the one that has the lowest distance and always less than 3 (this can be adjusted but I find 3 edits of difference to be a good starting point, otherwise we could lose accuracy)
+		// 4. if we can't pass the above test we return no tag and suggest new creation
 	} else {
 		s = strings.Join(responses[:], "\n")
 	}
