@@ -117,7 +117,9 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		count       int
 		fuzzyMatch  bool
 		minDistName string
+		matchDist   int = 3
 	)
+
 	for i := 1; i < len(words); i++ {
 		if cache.ContainsTag(words[i]) {
 			for _, tag := range cache.Find(words[i]) {
@@ -131,7 +133,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		// exact match not found, fuzzy match
 		for i := 1; i < len(words); i++ {
 			// minDist can be initialized to any value bigger than what we will consider the minimum distance for a fuzzy match
-			minDist := 3
+			minDist := matchDist
 
 			for _, tag := range cache.GetNames() {
 				// calculate levenshtein distance of both strings
@@ -144,7 +146,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 			}
 			// if distance is less than 3 we consider a fuzzy match
 			// REVIEW: what if we have several tags with the same distance, currently we take the last one with this approach
-			if minDist < 3 {
+			if minDist < matchDist {
 				for _, tag := range cache.Find(minDistName) {
 					s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
 					responses = append(responses, s)
@@ -209,6 +211,8 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 		case words[4] == "as":
 			postHelp(ev, addHelp) // TODO finish building matrix/DB to add anchor
 		}
+	default:
+		handleKeywords(ev, words)
 
 	}
 	return nil

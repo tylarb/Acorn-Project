@@ -39,7 +39,7 @@ func (cache *TagCache) GetNames() []string {
 	// NOTE: this looks a bit long but it is faster to iterate with
 	// i rather than to use append when we already know the size of the slice
 	// https://stackoverflow.com/a/27848197
-	keys := make([]string, len(cache.tags))
+	keys := make([]string, cache.count)
 	i := 0
 	for k := range cache.tags {
 		keys[i] = k
