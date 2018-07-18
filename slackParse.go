@@ -24,6 +24,7 @@ import (
 
 	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
+	lv "github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
 type response struct {
@@ -110,10 +111,12 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	// 1.(ignore punc but don't trim) regex on keyword from database and match to user provided string (possible error if new tag CONTAINS keyword i.e. doc -> docs/documents/docker
 	// 2. (trim and match exact word) regex on user provided word and match to key from db.  <-- this looks preferable
 	var (
-		responses []string
-		s         string // Placeholder string for building a response
-		r         response
-		count     int
+		responses   []string
+		s           string // Placeholder string for building a response
+		r           response
+		count       int
+		fuzzyMatch  bool
+		minDistName string
 	)
 	for i := 1; i < len(words); i++ {
 		if cache.ContainsTag(words[i]) {
@@ -125,12 +128,34 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		}
 	}
 	if count == 0 {
-		s = noRelevantTag
-		// tag exact match not found -> fuzzy search
-		// 1. get all tags in the cache/database
-		// 2. apply levenshtein distance to them
-		// 3. call QueryTag with the one that has the lowest distance and always less than 3 (this can be adjusted but I find 3 edits of difference to be a good starting point, otherwise we could lose accuracy)
-		// 4. if we can't pass the above test we return no tag and suggest new creation
+		// exact match not found, fuzzy match
+		for i := 1; i < len(words); i++ {
+			// minDist can be initialized to any value bigger than what we will consider the minimum distance for a fuzzy match
+			minDist := 3
+
+			for _, tag := range cache.GetNames() {
+				// calculate levenshtein distance of both strings
+				dist := lv.DistanceForStrings([]rune(words[i]), []rune(tag), lv.DefaultOptions)
+				log.WithFields(log.Fields{"s1": tag, "s2": words[i], "dist": dist}).Debug("Calculating Levenshtein distance")
+				if dist < minDist {
+					minDist = dist
+					minDistName = tag
+				}
+			}
+			// if distance is less than 3 we consider a fuzzy match
+			// REVIEW: what if we have several tags with the same distance, currently we take the last one with this approach
+			if minDist < 3 {
+				for _, tag := range cache.Find(minDistName) {
+					s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
+					responses = append(responses, s)
+					fuzzyMatch = true
+				}
+			}
+		}
+		// if we did not find any fuzzy match
+		if !fuzzyMatch {
+			s = noRelevantTag
+		}
 	} else {
 		s = strings.Join(responses[:], "\n")
 	}
