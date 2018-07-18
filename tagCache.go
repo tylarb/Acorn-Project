@@ -34,6 +34,20 @@ type TagCache struct {
 	count int
 }
 
+// GetNames gets a []string slice of all tag names in the cache
+func (cache *TagCache) GetNames() []string {
+	// NOTE: this looks a bit long but it is faster to iterate with
+	// i rather than to use append when we already know the size of the slice
+	// https://stackoverflow.com/a/27848197
+	keys := make([]string, cache.count)
+	i := 0
+	for k := range cache.tags {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
 // Find gets the tagInfo associated with a tag
 func (cache *TagCache) Find(t string) []TagInfo {
 	return cache.tags[strings.ToLower(t)]
