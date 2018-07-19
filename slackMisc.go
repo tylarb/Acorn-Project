@@ -84,8 +84,8 @@ func chanTrim(c string) string {
 func getChanName(id string) string {
 	channel, err := sc.GetChannelInfo(id)
 	if err != nil {
-		log.Error("API call to get chan info failed")
-		log.Panic()
+		log.WithField("id", id).Error("API call to get chan info failed")
+		log.Panic(err)
 	}
 	return channel.Name
 }

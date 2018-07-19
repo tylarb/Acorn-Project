@@ -34,6 +34,15 @@ type TagCache struct {
 	count int
 }
 
+// TagInfo is the response structure when a tag query is made
+type TagInfo struct {
+	Anchor        string
+	Name          string
+	PlaybookURL   string
+	ComponentChan string
+	SupportChan   string
+}
+
 // GetNames gets a []string slice of all tag names in the cache
 func (cache *TagCache) GetNames() []string {
 	// NOTE: this looks a bit long but it is faster to iterate with

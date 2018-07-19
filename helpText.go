@@ -5,6 +5,8 @@ All help and error mesages which might be printed to slack
 package main
 
 import (
+	"fmt"
+
 	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
 )
@@ -21,6 +23,10 @@ const (
 	noRelevantTag   = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you thing you have a tag which should be added"
 	alreadyAdded    = "Tag _%s_ is already marked for this component"
 )
+
+func tagFmt(tag TagInfo) string {
+	return fmt.Sprintf("*tag:* %s, *anchor:* %s, *component-channel:* %s, *support-channel:* %s, *playbook:* %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), chanFormat(tag.SupportChan), tag.PlaybookURL)
+}
 
 // posts a help message on user join
 func postHelpJoin(ev *slack.MemberJoinedChannelEvent) error {
@@ -59,7 +65,7 @@ type _help add_ for help adding other details to the database`
 		message = `To add tags to the bot, use the following syntax:
 
 _@[bot] tag [#component-channel] [tag1], [tag2], ..._
-		
+
 Only anchors can add tags.`
 
 	case kind == addHelp:
