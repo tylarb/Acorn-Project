@@ -21,9 +21,9 @@ import (
 type Component struct {
 	ID            int
 	AnchorSlackID string `gorm:"type:varchar(20)"`
-	PlaybookURL   string `gorm:"type:varchar(30)"`
+	PlaybookURL   string `gorm:"type:varchar(100)"`
 	ComponentChan string `gorm:"type:varchar(20)"`
-	SupportChan   string `gorm:"type:varchar(30)"`
+	SupportChan   string `gorm:"type:varchar(20)"`
 }
 
 // Tag is the database representation of a tag
