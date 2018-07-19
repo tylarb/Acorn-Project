@@ -106,10 +106,6 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 
 // handlesKeywords passed via the "tag" option
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
-	// TODO: handle the printing better
-	// TODO: Regex on keyword ignoring case and punctuation - two optoins here:
-	// 1.(ignore punc but don't trim) regex on keyword from database and match to user provided string (possible error if new tag CONTAINS keyword i.e. doc -> docs/documents/docker
-	// 2. (trim and match exact word) regex on user provided word and match to key from db.  <-- this looks preferable
 	var (
 		responses   []string
 		s           string // Placeholder string for building a response
@@ -123,13 +119,14 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	for i := 1; i < len(words); i++ {
 		if cache.ContainsTag(words[i]) {
 			for _, tag := range cache.Find(words[i]) {
-				s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
+				s = tagFmt(tag)
 				responses = append(responses, s)
 				count++
 			}
 		}
 	}
 	if count == 0 {
+		//TODO: split into different functions
 		// exact match not found, fuzzy match
 		for i := 1; i < len(words); i++ {
 			// minDist can be initialized to any value bigger than what we will consider the minimum distance for a fuzzy match
@@ -138,7 +135,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 			for _, tag := range cache.GetNames() {
 				// calculate levenshtein distance of both strings
 				dist := lv.DistanceForStrings([]rune(words[i]), []rune(tag), lv.DefaultOptions)
-				log.WithFields(log.Fields{"s1": tag, "s2": words[i], "dist": dist}).Debug("Calculating Levenshtein distance")
+				log.WithFields(log.Fields{"s1": tag, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
 				if dist < minDist {
 					minDist = dist
 					minDistName = tag
@@ -148,7 +145,7 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 			// REVIEW: what if we have several tags with the same distance, currently we take the last one with this approach
 			if minDist < matchDist {
 				for _, tag := range cache.Find(minDistName) {
-					s = fmt.Sprintf("tag: %s, anchor: %s, component: %s, playbook: %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), tag.PlaybookURL)
+					s = tagFmt(tag)
 					responses = append(responses, s)
 					fuzzyMatch = true
 				}
