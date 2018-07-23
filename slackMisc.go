@@ -9,6 +9,7 @@ Released under MIT license, copyright 2018 Tyler Ramer
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -81,13 +82,16 @@ func chanTrim(c string) string {
 }
 
 // gets a channel name from ID via API for cleaner printing to logs
-func getChanName(id string) string {
+func getChanName(id string) (string, error) {
 	channel, err := sc.GetChannelInfo(id)
 	if err != nil {
 		log.WithField("id", id).Error("API call to get chan info failed")
+		if err.Error() == "channel_not_found" {
+			return "", ErrNoChannel
+		}
 		log.Panic(err)
 	}
-	return channel.Name
+	return channel.Name, nil
 }
 
 // Cleans up Ephemeral message posting, see issue: https://github.com/nlopes/slack/issues/191
@@ -103,3 +107,6 @@ func postEphemeral(channel, user, text string) (string, error) {
 		slack.MsgOptionPostMessageParameters(params),
 	)
 }
+
+// ErrNoChannel is returned if there is no channel in slack with this name
+var ErrNoChannel = errors.New("No channel exists in slack with this name")

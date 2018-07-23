@@ -188,6 +188,11 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 						slackPrint(r)
 						break
 					}
+					if err == ErrNoChannel {
+						r.message = noChannelInSlack
+						slackPrint(r)
+						break
+					}
 				}
 				count++
 			} else {
