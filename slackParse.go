@@ -127,12 +127,12 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 				}
 			}
 		} else {
-			for _, tag := range wordCache {
-				dist := lv.DistanceForStrings([]rune(words[i]), []rune(tag), lv.DefaultOptions)
+			for _, t := range wordCache {
+				dist := lv.DistanceForStrings([]rune(words[i]), []rune(t), lv.DefaultOptions)
 				lWord := float64(len(words[i]))
 				d := float64(dist)
-				lTag := float64(len(tag))
-				log.WithFields(log.Fields{"s1": tag, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
+				lTag := float64(len(t))
+				log.WithFields(log.Fields{"s1": t, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
 				if dist == 0 {
 					foundMatch = true
 					for _, tag := range cache.Find(words[i]) {
