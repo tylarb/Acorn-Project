@@ -86,10 +86,12 @@ func getChanName(id string) (string, error) {
 	channel, err := sc.GetChannelInfo(id)
 	if err != nil {
 		log.WithField("id", id).Error("API call to get chan info failed")
-		log.Error(err)
-		err = ErrNoChannel
+		if err.Error() == "channel_not_found" {
+			return "", ErrNoChannel
+		}
+		log.Panic(err)
 	}
-	return channel.Name, err
+	return channel.Name, nil
 }
 
 // Cleans up Ephemeral message posting, see issue: https://github.com/nlopes/slack/issues/191

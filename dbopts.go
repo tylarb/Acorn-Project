@@ -148,9 +148,10 @@ func AddTag(t TagInfo) error {
 	if err := db.Where(&Component{ComponentChan: t.ComponentChan}).First(&component).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			// Check if the channel exists in slack
-			channel, e := getChanName(t.ComponentChan)
-			if e == nil {
-				return ErrNoChannel
+			channel, err := getChanName(t.ComponentChan)
+			if err != nil {
+				log.WithField("ComponentChannel", t.ComponentChan).Error("Component channel is not valid")
+				return err
 			}
 			log.WithField("ComponentName", channel).Error("Component is not in the DB")
 			return ErrNoComponent
