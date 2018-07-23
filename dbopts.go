@@ -144,9 +144,15 @@ func GetAllTags() (tagMap map[string][]TagInfo, size int) {
 func AddTag(t TagInfo) error {
 	var component Component
 	tag := Tag{Name: t.Name}
+
 	if err := db.Where(&Component{ComponentChan: t.ComponentChan}).First(&component).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			log.WithField("ComponentName", getChanName(t.ComponentChan)).Error("Component is not in the DB")
+			// Check if the channel exists in slack
+			channel, e := getChanName(t.ComponentChan)
+			if e == nil {
+				return ErrNoChannel
+			}
+			log.WithField("ComponentName", channel).Error("Component is not in the DB")
 			return ErrNoComponent
 		}
 		log.Panic(err)
@@ -173,7 +179,9 @@ func AddTag(t TagInfo) error {
 			log.Panic(err)
 		}
 	}
-	log.WithFields(log.Fields{"tag": t.Name, "support-channel": getChanName(component.SupportChan), "component-channel": getChanName(component.ComponentChan)}).Info("added tag to the database")
+	supportChan, _ := getChanName(component.SupportChan)
+	componentChan, _ := getChanName(component.ComponentChan)
+	log.WithFields(log.Fields{"tag": t.Name, "support-channel": supportChan, "component-channel": componentChan}).Info("added tag to the database")
 	return nil
 }
 

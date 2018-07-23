@@ -19,9 +19,10 @@ const (
 
 // Various help messages
 const (
-	noComponentInDB = "This component is not in the database - please reach out to a member of acorn project team to get your component added"
-	noRelevantTag   = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you thing you have a tag which should be added"
-	alreadyAdded    = "Tag _%s_ is already marked for this component"
+	noComponentInDB  = "This component is not in the database - please reach out to a member of acorn project team to get your component added"
+	noChannelInSlack = "This component does not appear to be a valid one, please use its the slack channel name - if you think this is not right, please reach out to a member of acorn project team"
+	noRelevantTag    = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you thing you have a tag which should be added"
+	alreadyAdded     = "Tag _%s_ is already marked for this component"
 )
 
 func tagFmt(tag TagInfo) string {
