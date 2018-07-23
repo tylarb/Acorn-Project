@@ -71,6 +71,7 @@ func (cache *TagCache) ContainsTag(t string) bool {
 // ContainsTagInfo returns bool if the cache contains the specific TagInfo
 //
 func (cache *TagCache) ContainsTagInfo(t TagInfo) bool {
+	t.Name = strings.ToLower(t.Name)
 	if cache.ContainsTag(t.Name) {
 		for _, tag := range cache.tags[t.Name] {
 			if tag.ComponentChan == t.ComponentChan {
