@@ -139,9 +139,9 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 						s = tagFmt(tag)
 						responses = append(responses, s)
 					}
-				} else if lWord-d/lTag > matchDistPercent {
+				} else if (lWord-d)/lTag > matchDistPercent {
 					foundMatch = true
-					for _, tag := range cache.Find(words[i]) {
+					for _, tag := range cache.Find(t) {
 						s = tagFmt(tag)
 						responses = append(responses, s)
 					}
