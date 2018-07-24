@@ -107,60 +107,58 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 // handlesKeywords passed via the "tag" option
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	var (
-		responses   []string
-		s           string // Placeholder string for building a response
-		r           response
-		count       int
-		fuzzyMatch  bool
-		minDistName string
-		matchDist   int = 3
+		responses        []string
+		s                string // Placeholder string for building a response
+		r                response
+		foundMatch       bool
+		matchDistPercent = .75
+		minWordLength    = 4
 	)
 
+	wordCache := cache.GetNames()
+
 	for i := 1; i < len(words); i++ {
-		if cache.ContainsTag(words[i]) {
-			for _, tag := range cache.Find(words[i]) {
-				s = tagFmt(tag)
-				responses = append(responses, s)
-				count++
+		if len(words[i]) < minWordLength {
+			if cache.ContainsTag(words[i]) {
+				foundMatch = true
+				for _, tag := range cache.Find(words[i]) {
+					s = tagFmt(tag)
+					responses = append(responses, s)
+				}
+			}
+		} else {
+			for _, t := range wordCache {
+				dist := lv.DistanceForStrings([]rune(words[i]), []rune(t), lv.DefaultOptions)
+				lWord := float64(len(words[i]))
+				d := float64(dist)
+				lTag := float64(len(t))
+				log.WithFields(log.Fields{"s1": t, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
+				if dist == 0 {
+					foundMatch = true
+					for _, tag := range cache.Find(words[i]) {
+						s = tagFmt(tag)
+						responses = append(responses, s)
+					}
+				} else if (lWord-d)/lTag > matchDistPercent {
+					foundMatch = true
+					for _, tag := range cache.Find(t) {
+						s = tagFmt(tag)
+						responses = append(responses, s)
+					}
+				}
+
 			}
 		}
 	}
-	if count == 0 {
-		//TODO: split into different functions
-		// exact match not found, fuzzy match
-		for i := 1; i < len(words); i++ {
-			// minDist can be initialized to any value bigger than what we will consider the minimum distance for a fuzzy match
-			minDist := matchDist
-
-			for _, tag := range cache.GetNames() {
-				// calculate levenshtein distance of both strings
-				dist := lv.DistanceForStrings([]rune(words[i]), []rune(tag), lv.DefaultOptions)
-				log.WithFields(log.Fields{"s1": tag, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
-				if dist < minDist {
-					minDist = dist
-					minDistName = tag
-				}
-			}
-			// if distance is less than 3 we consider a fuzzy match
-			// REVIEW: what if we have several tags with the same distance, currently we take the last one with this approach
-			if minDist < matchDist {
-				for _, tag := range cache.Find(minDistName) {
-					s = tagFmt(tag)
-					responses = append(responses, s)
-					fuzzyMatch = true
-				}
-			}
-		}
-		// if we did not find any fuzzy match
-		if !fuzzyMatch {
-			s = noRelevantTag
-		}
-	} else {
+	if foundMatch {
 		s = strings.Join(responses[:], "\n")
+	} else {
+		s = noRelevantTag
 	}
 	r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
 	slackPrint(r)
 	return nil
+
 }
 
 // TODO: add Servicecloud integration and scan cases for details
