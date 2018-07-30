@@ -128,19 +128,21 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 			}
 		} else {
 			for _, t := range wordCache {
-				dist := lv.DistanceForStrings([]rune(words[i]), []rune(t), lv.DefaultOptions)
-				lWord := float64(len(words[i]))
-				d := float64(dist)
-				lTag := float64(len(t))
-				log.WithFields(log.Fields{"s1": t, "s2": words[i], "dist": dist}).Debug("Levenshtein distance")
-				if dist == 0 {
+				if len(t) < minWordLength {
+					continue
+				}
+				dist := lv.RatioForStrings([]rune(words[i]), []rune(t), lv.DefaultOptions)
+				log.WithFields(log.Fields{"s1": t, "s2": words[i], "dist": dist}).Debug("Levenshtein ratio")
+				if dist == 1 {
 					foundMatch = true
+					log.WithField("tag", t).Debug("found exact match in cache")
 					for _, tag := range cache.Find(words[i]) {
 						s = tagFmt(tag)
 						responses = append(responses, s)
 					}
-				} else if (lWord-d)/lTag > matchDistPercent {
+				} else if dist >= matchDistPercent {
 					foundMatch = true
+					log.WithField("tag", t).Debug("Found fuzzy match")
 					for _, tag := range cache.Find(t) {
 						s = tagFmt(tag)
 						responses = append(responses, s)
