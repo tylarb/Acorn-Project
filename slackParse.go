@@ -110,12 +110,11 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 func handleKeywords(ev *slack.MessageEvent, words []string) error {
 	var (
 		responses        []string
-		s                string // Placeholder string for building a response
-		r                response
 		foundMatch       bool
-		matchDistPercent = .75
+		matchDistPercent = .85
 		minWordLength    = 4
 	)
+	r := response{user: ev.User, channel: ev.Channel, isEphemeral: false, isIM: false, threadTS: ev.EventTimestamp}
 
 	tagsCache := cache.GetNames()
 
@@ -124,31 +123,34 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		if len(word) < minWordLength {
 			if cache.ContainsTag(word) {
 				foundMatch = true
+				log.WithField("tag", word).Debug("found exact match in cache")
 				for _, tag := range cache.Find(word) {
-					s = tagFmt(tag)
-					responses = append(responses, s)
+					responses = append(responses, tagFmt(tag))
 				}
 			}
 		} else {
-			for _, t := range tagsCache {
-				if len(t) < minWordLength {
-					continue
+			if cache.ContainsTag(word) {
+				foundMatch = true
+				log.WithField("tag", word).Debug("found exact match in cache")
+				for _, tag := range cache.Find(word) {
+					responses = append(responses, tagFmt(tag))
 				}
-				dist := lv.RatioForStrings([]rune(word), []rune(t), lv.DefaultOptions)
-				log.WithFields(log.Fields{"s1": t, "s2": word, "dist": dist}).Debug("Levenshtein ratio")
-				if dist == 1 {
-					foundMatch = true
-					log.WithField("tag", t).Debug("found exact match in cache")
-					for _, tag := range cache.Find(word) {
-						s = tagFmt(tag)
-						responses = append(responses, s)
+			} else {
+				for _, t := range tagsCache {
+					if len(t) < minWordLength {
+						continue
 					}
-				} else if dist >= matchDistPercent {
-					foundMatch = true
-					log.WithField("tag", t).Debug("Found fuzzy match")
-					for _, tag := range cache.Find(t) {
-						s = tagFmt(tag)
-						responses = append(responses, s)
+					dist := lv.RatioForStrings([]rune(word), []rune(t), lv.DefaultOptions)
+					log.WithFields(log.Fields{"s1": t, "s2": word, "dist": dist}).Debug("Levenshtein ratio")
+					if dist == 1 {
+						log.WithField("tag", t).Error("Using lv dist for an exact match - this should not have occured")
+						break // Due to exact match, the response should be populated.
+					} else if dist >= matchDistPercent {
+						foundMatch = true
+						log.WithField("tag", t).Debug("Found fuzzy match")
+						for _, tag := range cache.Find(t) {
+							responses = append(responses, tagFmt(tag))
+						}
 					}
 				}
 
@@ -156,11 +158,10 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		}
 	}
 	if foundMatch {
-		s = strings.Join(responses[:], "\n")
+		r.message = strings.Join(responses[:], "\n")
 	} else {
-		s = noRelevantTag
+		r.message = noRelevantTag
 	}
-	r = response{s, ev.User, ev.Channel, false, false, ev.EventTimestamp}
 	slackPrint(r)
 	return nil
 
