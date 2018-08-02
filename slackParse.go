@@ -99,6 +99,8 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 		postHelp(ev, tagsHelp)
 	case len(words) > 1 && regAdd.MatchString(words[1]):
 		postHelp(ev, addHelp)
+	default:
+		postHelp(ev, baseHelp)
 	}
 
 	return nil
@@ -214,6 +216,8 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 		case words[4] == "as":
 			postHelp(ev, addHelp) // TODO finish building matrix/DB to add anchor
 		}
+	case regHelp.MatchString(words[1]):
+		handleHelp(ev, words[1:])
 	default:
 		handleKeywords(ev, words)
 
