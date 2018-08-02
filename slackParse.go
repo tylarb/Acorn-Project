@@ -115,28 +115,29 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		minWordLength    = 4
 	)
 
-	wordCache := cache.GetNames()
+	tagsCache := cache.GetNames()
 
 	for i := 1; i < len(words); i++ {
-		if len(words[i]) < minWordLength {
-			if cache.ContainsTag(words[i]) {
+		word := strings.ToLower(words[i])
+		if len(word) < minWordLength {
+			if cache.ContainsTag(word) {
 				foundMatch = true
-				for _, tag := range cache.Find(words[i]) {
+				for _, tag := range cache.Find(word) {
 					s = tagFmt(tag)
 					responses = append(responses, s)
 				}
 			}
 		} else {
-			for _, t := range wordCache {
+			for _, t := range tagsCache {
 				if len(t) < minWordLength {
 					continue
 				}
-				dist := lv.RatioForStrings([]rune(words[i]), []rune(t), lv.DefaultOptions)
-				log.WithFields(log.Fields{"s1": t, "s2": words[i], "dist": dist}).Debug("Levenshtein ratio")
+				dist := lv.RatioForStrings([]rune(word), []rune(t), lv.DefaultOptions)
+				log.WithFields(log.Fields{"s1": t, "s2": word, "dist": dist}).Debug("Levenshtein ratio")
 				if dist == 1 {
 					foundMatch = true
 					log.WithField("tag", t).Debug("found exact match in cache")
-					for _, tag := range cache.Find(words[i]) {
+					for _, tag := range cache.Find(word) {
 						s = tagFmt(tag)
 						responses = append(responses, s)
 					}
