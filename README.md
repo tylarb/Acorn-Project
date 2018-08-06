@@ -33,6 +33,6 @@ A Postgres database is used for backing storage, but all tags are loaded into an
 Fuzzy logic for keyword matching, using the [levenshtein distance](github.com/texttheater/golang-levenshtein/levenshtein), allows the bot to handle mispellings of keywords. 
 
 
-# Contributting 
+# Contributing 
 
 Feel free to fork and submit pull requests, or submit issues and feature requests. 
