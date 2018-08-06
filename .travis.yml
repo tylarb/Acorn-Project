@@ -1,0 +1,3 @@
+language: go
+        - "1.x"
+        - master
