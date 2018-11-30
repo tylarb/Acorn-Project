@@ -15,18 +15,25 @@ const (
 	baseHelp = iota
 	tagsHelp
 	addHelp
+	anchorHelp
 )
 
 // Various help messages
 const (
 	noComponentInDB  = "This component is not in the database - please reach out to a member of acorn project team to get your component added"
-	noChannelInSlack = "This component does not appear to be a valid one, please use the slack channel name of the component - if you think this is not right, please reach out to a member of acorn project team"
-	noRelevantTag    = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you thing you have a tag which should be added"
+	noChannelInSlack = "This component does not appear to be a valid slack channel, please use the slack channel name of the component - if you think this is not right, please reach out to a member of acorn project team"
+	noRelevantTag    = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you think you have a tag which should be added"
 	alreadyAdded     = "Tag _%s_ is already marked for this component"
+	tagTooLong       = "Tag _%s_ is too long to add to the database"
+	invalidAnchor    = "The word submitted as the anchor ID does not appear to be a valid slack ID."
 )
 
 func tagFmt(tag TagInfo) string {
 	return fmt.Sprintf("*tag:* %s, *anchor:* %s, *component-channel:* %s, *support-channel:* %s, *playbook:* %s\n", tag.Name, usrFormat(tag.Anchor), chanFormat(tag.ComponentChan), chanFormat(tag.SupportChan), tag.PlaybookURL)
+}
+
+func componentFmt(c Component) string {
+	return fmt.Sprintf("*anchor:* %s, *component-channel:* %s, *support-channel:* %s, *playbook:* %s\n", usrFormat(c.AnchorSlackID), chanFormat(c.ComponentChan), chanFormat(c.SupportChan), c.PlaybookURL)
 }
 
 // posts a help message on user join
@@ -36,7 +43,7 @@ Please follow this guide for getting help from the bot:
 
 type _tag: [keyword]_ to see the component, playbooks, appropriate channels, and the anchor associated with this tag
 
-type _anchor: [component]_ to see the anchor and channel in charge of a product component
+type _anchor: [component chan]_ to see the anchor and support channel in charge of a product component
 
 type _help_ in this channel to see this message again at any time`
 
@@ -61,16 +68,22 @@ type _help_ in this channel to see this message again at any time
 
 type _help tags_ for further information about adding tags
 
+type _help anchor_ for further information about setting anchors
+
 type _help add_ for help adding other details to the database`
 	case kind == tagsHelp:
 		message = `To add tags to the bot, use the following syntax:
 
 _@[bot] tag [#component-channel] [tag1], [tag2], ..._
-
-Only anchors can add tags.`
+`
 
 	case kind == addHelp:
 		message = `Adding other items to the database is still in development. Check back later`
+
+	case kind == anchorHelp:
+		message = `To set a new anchor for a component, use the following syntax:
+
+_@[bot] set [#component-channel] anchor @[anchor]_`
 	}
 
 	r := response{message, ev.User, ev.Channel, true, false, ""}

@@ -158,6 +158,12 @@ func (cache *TagCache) drop(t string) {
 // Load adds all tags in the database to the cache  // TODO - govern concurrent access here?
 // This should be called when the cache is first initialized
 func (cache *TagCache) Load() {
+	cache.Lock()
+	defer cache.Unlock()
+	cache.load()
+}
+
+func (cache *TagCache) load() {
 	cache.Tags, cache.Count = GetAllTags()
 }
 

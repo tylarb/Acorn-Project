@@ -81,6 +81,10 @@ func chanTrim(c string) string {
 	return r
 }
 
+func usrTrim(u string) string {
+	return strings.Trim(u, "<@>")
+}
+
 // gets a channel name from ID via API for cleaner printing to logs
 func getChanName(id string) (string, error) {
 	channel, err := sc.GetChannelInfo(id)
@@ -92,6 +96,15 @@ func getChanName(id string) (string, error) {
 		log.Panic(err)
 	}
 	return channel.Name, nil
+}
+
+func validateAnchorName(n string) bool {
+	_, err := sc.GetUserInfo(n)
+	if err != nil {
+		return false
+	}
+	return true
+
 }
 
 // Cleans up Ephemeral message posting, see issue: https://github.com/nlopes/slack/issues/191

@@ -29,9 +29,12 @@ type Component struct {
 // Tag is the database representation of a tag
 type Tag struct {
 	ID         int
-	Name       string      `gorm:"type:varchar(20)"`
+	Name       string      `gorm:"type:varchar(50)"`
 	Components []Component `gorm:"many2many:tag_components;"`
 }
+
+// MAX_TAG_LENGTH should be length of varchar in db
+const MAX_TAG_LENGTH = 50
 
 var db *gorm.DB
 
@@ -142,6 +145,9 @@ func GetAllTags() (tagMap map[string][]TagInfo, size int) {
 // TODO: Eventually, adding a component may be possible. Need to build error logic if
 // component exists w/ different information than provided. Also need to clean up probably
 func AddTag(t TagInfo) error {
+	if len(t.Name) > MAX_TAG_LENGTH {
+		return ErrTagTooLong
+	}
 	var component Component
 	tag := Tag{Name: t.Name}
 
@@ -186,8 +192,56 @@ func AddTag(t TagInfo) error {
 	return nil
 }
 
+// ChangeAnchor takes a component chan and anchor string and sets anchor string as anchor for that component
+func ChangeAnchor(componentChan, newAnchor string) error {
+	var component Component
+	if err := db.Where(&Component{ComponentChan: componentChan}).First(&component).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			// Check if the channel exists in slack
+			channel, err := getChanName(componentChan)
+			if err != nil {
+				log.WithField("ComponentChannel", componentChan).Error("Component channel is not valid")
+				return err
+			}
+			log.WithField("ComponentName", channel).Error("Component is not in the DB")
+			return ErrNoComponent
+		}
+		log.Panic(err)
+	}
+	if err := db.Model(&component).Update("AnchorSlackID", newAnchor).Error; err != nil {
+		log.WithFields(log.Fields{"anchor": newAnchor, "component": componentChan}).Error("Failed to change anchor")
+		log.Panic(err)
+	}
+	cache.Load() // More than one tag will be reset - we need to reload the cache entirely
+	log.WithFields(log.Fields{"anchor": newAnchor, "component": componentChan}).Info("Changed Anchor in DB")
+	return nil
+}
+
+// GetAnchor returns the anchor slack ID and other tag details about a component channel
+func GetAnchor(componentChan string) (Component, error) {
+	var component Component
+	if err := db.Where(&Component{ComponentChan: componentChan}).First(&component).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			// Check if the channel exists in slack
+			channel, err := getChanName(componentChan)
+			if err != nil {
+				log.WithField("ComponentChannel", componentChan).Error("Component channel is not valid")
+				return component, err
+			}
+			log.WithField("ComponentName", channel).Error("Component is not in the DB")
+			return component, ErrNoComponent
+		}
+		log.Panic(err)
+	}
+	return component, nil
+
+}
+
 // ErrNoComponent is returned of there is no component in DB with provided ID
 var ErrNoComponent = errors.New("No component returned from the database for this ID")
 
 // ErrNoTag is returned if there is no tag in the DB for the associated entry TODO - add error to be returned by the cache
 var ErrNoTag = errors.New("No tag exists for this word")
+
+// ErrTagTooLong is returned if tag length is too long for DB
+var ErrTagTooLong = errors.New("Tag name too long")
