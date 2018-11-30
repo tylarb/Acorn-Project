@@ -130,11 +130,8 @@ func handleKeywords(ev *slack.MessageEvent, words []string) error {
 		foundMatch bool
 	)
 	r := response{user: ev.User, channel: ev.Channel, isEphemeral: false, isIM: false}
-	if ev.ThreadTimestamp != "" {
-		r.threadTS = ev.ThreadTimestamp
-	} else {
-		r.threadTS = ev.Timestamp
-	}
+	r.setResponseContext(ev)
+
 	responses, foundMatch = tagMatch(words)
 	if foundMatch {
 		r.message = strings.Join(responses[:], "\n")
@@ -232,11 +229,8 @@ func lvSearch(word string, tagsCache []string, found chan TagInfo, complete chan
 
 func handleAnchor(ev *slack.MessageEvent, words []string) error {
 	r := response{user: ev.User, channel: ev.Channel}
-	if ev.ThreadTimestamp != "" {
-		r.threadTS = ev.ThreadTimestamp
-	} else {
-		r.threadTS = ev.Timestamp
-	}
+	r.setResponseContext(ev)
+
 	word := words[1]
 	component, err := GetAnchor(chanTrim(word))
 	if err != nil {
@@ -343,6 +337,21 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 
 	}
 	return nil
+}
+
+func (r *response) setResponseContext(ev *slack.MessageEvent) {
+	chanInfo, err := sc.GetConversationInfo(ev.Channel, false)
+	if err != nil {
+		log.Error(err)
+	}
+	if !chanInfo.IsIM {
+		if ev.ThreadTimestamp != "" {
+			r.threadTS = ev.ThreadTimestamp
+		} else {
+			r.threadTS = ev.Timestamp
+		}
+	}
+
 }
 
 func tagCleanup(message string) []string {

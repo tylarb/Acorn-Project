@@ -116,7 +116,6 @@ func postEphemeral(channel, user, text string) (string, error) {
 		channel,
 		user,
 		slack.MsgOptionText(text, params.EscapeText),
-		slack.MsgOptionAttachments(params.Attachments...),
 		slack.MsgOptionPostMessageParameters(params),
 	)
 }
