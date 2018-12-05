@@ -15,7 +15,8 @@ const (
 	baseHelp = iota
 	tagsHelp
 	addHelp
-	anchorHelp
+	dropHelp
+	setHelp
 )
 
 // Various help messages
@@ -24,8 +25,10 @@ const (
 	noChannelInSlack = "This component does not appear to be a valid slack channel, please use the slack channel name of the component - if you think this is not right, please reach out to a member of acorn project team"
 	noRelevantTag    = "I couldn't find anything relevant. Please contact your local (or remote) anchor if you think you have a tag which should be added"
 	alreadyAdded     = "Tag _%s_ is already marked for this component"
+	noTagInDB        = "Tag _%s_ is not in the database"
 	tagTooLong       = "Tag _%s_ is too long to add to the database"
 	invalidAnchor    = "The word submitted as the anchor ID does not appear to be a valid slack ID."
+	notWeblink       = "The word submitted as playbook URL does not appear to be a valid URL"
 )
 
 func tagFmt(tag TagInfo) string {
@@ -68,9 +71,10 @@ type _help_ in this channel to see this message again at any time
 
 type _help tags_ for further information about adding tags
 
-type _help anchor_ for further information about setting anchors
+type _help set_ for further information about changing components channels metadata
 
-type _help add_ for help adding other details to the database`
+type _help drop_ for further information about dropping tags`
+
 	case kind == tagsHelp:
 		message = `To add tags to the bot, use the following syntax:
 
@@ -80,10 +84,21 @@ _@[bot] tag [#component-channel] [tag1], [tag2], ..._
 	case kind == addHelp:
 		message = `Adding other items to the database is still in development. Check back later`
 
-	case kind == anchorHelp:
-		message = `To set a new anchor for a component, use the following syntax:
+	case kind == dropHelp:
+		message = `Drop a tag from the database using the following syntax:
+		
+_@[bot] drop [tag1], [tag2], ..._
 
-_@[bot] set [#component-channel] anchor @[anchor]_`
+*Warning: This drop ALL tag associations with all component channels. Use with care*`
+
+	case kind == setHelp:
+		message = `To set make adjustments for a component, use the following syntax:
+*Change Anchor:*
+_@[bot] set [#component-channel] anchor @[anchor]_
+
+*Change playbook URL:*
+_@[bot] set [#component-channl] playbook [url]_`
+
 	}
 
 	r := response{message, ev.User, ev.Channel, true, false, ""}

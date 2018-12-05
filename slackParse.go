@@ -45,11 +45,15 @@ var (
 // regex definitions
 
 var (
-	regHelp   = regexp.MustCompile(`^(?i)help[\?]?$`)
-	regTags   = regexp.MustCompile(`^(?i)tag[s]?[\:]?$`)
-	regAdd    = regexp.MustCompile(`(?i)add$`)
-	regAnchor = regexp.MustCompile(`(?i)anchor$`)
-	regSet    = regexp.MustCompile(`(?i)set$`)
+	regHelp     = regexp.MustCompile(`^(?i)help[\?]?$`)
+	regTags     = regexp.MustCompile(`^(?i)tag[s]?[\:]?$`)
+	regAdd      = regexp.MustCompile(`(?i)add$`)
+	regAnchor   = regexp.MustCompile(`(?i)anchor$`)
+	regSet      = regexp.MustCompile(`(?i)set$`)
+	regDrop     = regexp.MustCompile(`(?i)drop$`)
+	regPlaybook = regexp.MustCompile(`(?i)playbook$`)
+	weblink     = regexp.MustCompile(`^<http.+>$`) // slack doesn't handle printing <link>
+
 )
 
 // parses all messagess from slack for special commands or karma events
@@ -114,8 +118,10 @@ func handleHelp(ev *slack.MessageEvent, words []string) error {
 		postHelp(ev, tagsHelp)
 	case len(words) > 1 && regAdd.MatchString(words[1]):
 		postHelp(ev, addHelp)
-	case len(words) > 1 && regAnchor.MatchString(words[1]):
-		postHelp(ev, anchorHelp)
+	case len(words) > 1 && regDrop.MatchString(words[1]):
+		postHelp(ev, dropHelp)
+	case len(words) > 1 && (regAnchor.MatchString(words[1]) || regSet.MatchString(words[1])):
+		postHelp(ev, setHelp)
 	default:
 		postHelp(ev, baseHelp)
 	}
@@ -264,71 +270,40 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 			postHelp(ev, tagsHelp)
 			return nil
 		} // TODO: clean this up
-		tag := TagInfo{ComponentChan: chanTrim(words[2])}
-		count := 0
-		tagList := tagCleanup(ev.Text)
-		for _, word := range tagList {
-			tag.Name = word
-			if !cache.ContainsTagInfo(tag) {
-				if err := cache.Add(tag); err != nil {
-					if err == ErrNoComponent {
-						r.message = noComponentInDB
-						slackPrint(r)
-						break
-					} else if err == ErrNoChannel {
-						r.message = noChannelInSlack
-						slackPrint(r)
-						break
-					} else if err == ErrTagTooLong {
-						r.message = fmt.Sprintf(tagTooLong, tag.Name)
-						slackPrint(r)
+		setTags(ev.Text, words, r)
 
-					}
-				}
-				count++
-			} else {
-				r.message = fmt.Sprintf(alreadyAdded, tag.Name)
-				slackPrint(r)
-			}
+	case regDrop.MatchString(words[1]):
+		if len(words) < 3 {
+			postHelp(ev, dropHelp)
 		}
-		if count != 0 {
-			r.message = fmt.Sprintf("Added %d tags to the component %s", count, words[2])
-			slackPrint(r)
-		}
-	case regAdd.MatchString(words[1]):
-		switch {
-		case len(words) < 5:
-			postHelp(ev, addHelp)
-		case words[2] == "component":
-			postHelp(ev, addHelp) // TODO finish building matrix/DB to add component
-		case words[4] == "as":
-			postHelp(ev, addHelp) // TODO finish building matrix/DB to add anchor
-		}
+		dropTags(ev.Text, words, r)
+		/*	case regAdd.MatchString(words[1]):
+			switch {
+			case len(words) < 5:
+				postHelp(ev, addHelp)
+			case words[2] == "component":
+				postHelp(ev, addHelp) // TODO finish building matrix/DB to add component
+			case words[4] == "as":
+				postHelp(ev, addHelp) // TODO finish building matrix/DB to add anchor
+			} */
 	case regHelp.MatchString(words[1]):
 		handleHelp(ev, words[1:])
-	case regSet.MatchString(words[1]):
-		if len(words) < 5 || !regAnchor.MatchString(words[3]) {
-			postHelp(ev, anchorHelp)
+	case regSet.MatchString(words[1]): // @bot set #channel {anchor, playbook} {@anchor, url}
+		if len(words) < 5 {
+			postHelp(ev, setHelp)
 			return nil
 		}
-		if !validateAnchorName(usrTrim(words[4])) {
-			r.message = invalidAnchor
-			slackPrint(r)
-			return nil
+		switch {
+		case regAnchor.MatchString(words[3]):
+			setAnchor(words, r)
+
+		case regPlaybook.MatchString(words[3]):
+			setPlaybook(words, r)
+
+		default:
+			postHelp(ev, setHelp)
 		}
-		if err := ChangeAnchor(chanTrim(words[2]), usrTrim(words[4])); err != nil {
-			if err == ErrNoComponent {
-				r.message = noComponentInDB
-			} else if err == ErrNoChannel {
-				r.message = noChannelInSlack
-			} else {
-				log.Panic(err)
-			}
-			slackPrint(r)
-			return nil
-		}
-		r.message = fmt.Sprintf("Successfully changed anchor for %s to %s", words[2], words[4])
-		slackPrint(r)
+
 	case regAnchor.MatchString(words[1]):
 		handleAnchor(ev, words[1:])
 
@@ -337,6 +312,101 @@ func handleCommand(ev *slack.MessageEvent, words []string) error {
 
 	}
 	return nil
+}
+
+func setTags(text string, words []string, r response) {
+	tag := TagInfo{ComponentChan: chanTrim(words[2])}
+	count := 0
+	tagList := tagCleanup(text, reqAdd)
+	for _, word := range tagList {
+		tag.Name = word
+		if !cache.ContainsTagInfo(tag) {
+			if err := cache.Add(tag); err != nil {
+				if err == ErrNoComponent {
+					r.message = noComponentInDB
+					slackPrint(r)
+					break
+				} else if err == ErrNoChannel {
+					r.message = noChannelInSlack
+					slackPrint(r)
+					break
+				} else if err == ErrTagTooLong {
+					r.message = fmt.Sprintf(tagTooLong, tag.Name)
+					slackPrint(r)
+					continue
+
+				}
+			}
+			count++
+		} else {
+			r.message = fmt.Sprintf(alreadyAdded, tag.Name)
+			slackPrint(r)
+		}
+	}
+	if count != 0 {
+		r.message = fmt.Sprintf("Added %d tags to the component %s", count, words[2])
+		slackPrint(r)
+	}
+}
+
+func dropTags(text string, words []string, r response) {
+	count := 0
+	tagList := tagCleanup(text, reqDrop)
+	for _, word := range tagList {
+		if !cache.ContainsTag(word) {
+			r.message = fmt.Sprintf(noTagInDB, word)
+			slackPrint(r)
+		} else {
+			cache.Drop(word)
+			count++
+		}
+	}
+	if count != 0 {
+		r.message = fmt.Sprintf("Dropped %d tags from the database", count)
+		slackPrint(r)
+	}
+}
+
+func setAnchor(words []string, r response) {
+	if !validateAnchorName(usrTrim(words[4])) {
+		r.message = invalidAnchor
+		slackPrint(r)
+		return
+	}
+	if err := ChangeAnchor(chanTrim(words[2]), usrTrim(words[4])); err != nil {
+		if err == ErrNoComponent {
+			r.message = noComponentInDB
+		} else if err == ErrNoChannel {
+			r.message = noChannelInSlack
+		} else {
+			log.Panic(err)
+		}
+		slackPrint(r)
+		return
+	}
+	r.message = fmt.Sprintf("Successfully changed anchor for %s to %s", words[2], words[4])
+	slackPrint(r)
+}
+
+func setPlaybook(words []string, r response) {
+	if !weblink.MatchString(words[4]) {
+		r.message = notWeblink
+		slackPrint(r)
+		return
+	}
+	if err := ChangePlaybook(chanTrim(words[2]), urlTrim(words[4])); err != nil {
+		if err == ErrNoComponent {
+			r.message = noComponentInDB
+		} else if err == ErrNoChannel {
+			r.message = noChannelInSlack
+		} else {
+			log.Panic(err)
+		}
+		slackPrint(r)
+		return
+	}
+	r.message = fmt.Sprintf("Successfully changed playbook for %s to %s", words[2], urlTrim(words[4]))
+	slackPrint(r)
 }
 
 func (r *response) setResponseContext(ev *slack.MessageEvent) {
@@ -354,12 +424,28 @@ func (r *response) setResponseContext(ev *slack.MessageEvent) {
 
 }
 
-func tagCleanup(message string) []string {
-	// Message like: "@bot tag #channel tag1, tag2a tag2b , tag3a b   tag3c"
-	words := strings.Split(message, ",")
-	for i, word := range words {
-		words[i] = strings.Join(strings.Fields(strings.Trim(word, " ")), " ")
+const (
+	reqAdd = iota
+	reqDrop
+)
+
+func tagCleanup(message string, reqType int) []string {
+	var words []string
+	switch {
+	case reqType == reqAdd:
+		// Message like: "@bot tag #channel tag1, tag2a tag2b , tag3a b   tag3c"
+		words = strings.Split(message, ",")
+		for i, word := range words {
+			words[i] = strings.Join(strings.Fields(strings.Trim(word, " ")), " ")
+		}
+		words[0] = strings.Join(strings.Fields(words[0])[3:], " ")
+	case reqType == reqDrop:
+		// Message like: "@bot drop tag1, tag2a tag2b , tag3a b   tag3c"
+		words = strings.Split(message, ",")
+		for i, word := range words {
+			words[i] = strings.Join(strings.Fields(strings.Trim(word, " ")), " ")
+		}
+		words[0] = strings.Join(strings.Fields(words[0])[2:], " ")
 	}
-	words[0] = strings.Join(strings.Fields(words[0])[3:], " ")
 	return words
 }

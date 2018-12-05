@@ -237,6 +237,48 @@ func GetAnchor(componentChan string) (Component, error) {
 
 }
 
+// ChangePlaybook changes the playbook URL for a component
+func ChangePlaybook(componentChan, newURL string) error {
+	var component Component
+	if err := db.Where(&Component{ComponentChan: componentChan}).First(&component).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			// Check if the channel exists in slack
+			channel, err := getChanName(componentChan)
+			if err != nil {
+				log.WithField("ComponentChannel", componentChan).Error("Component channel is not valid")
+				return err
+			}
+			log.WithField("ComponentName", channel).Error("Component is not in the DB")
+			return ErrNoComponent
+		}
+		log.Panic(err)
+	}
+	if err := db.Model(&component).Update("PlaybookURL", newURL).Error; err != nil {
+		log.WithFields(log.Fields{"url": newURL, "component": componentChan}).Error("Failed to change playbookURL")
+		log.Panic(err)
+	}
+	cache.Load() // More than one tag will be reset - we need to reload the cache entirely
+	log.WithFields(log.Fields{"URL": newURL, "component": componentChan}).Info("Changed playbook URL in DB")
+	return nil
+}
+
+// DropTag removes a tag from the database. This will only be called from within the tag cache, so no need to reload cache
+func DropTag(t string) error {
+	var tag Tag
+	if err := db.Where(&Tag{Name: t}).First(&tag).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return ErrNoTag
+		}
+		log.Error("Could not look up tag in DB")
+		log.Panic(err)
+	}
+	if err := db.Delete(&tag).Error; err != nil {
+		log.WithField("tag", tag.Name).Error("Could not delete tag from database")
+		log.Panic(err)
+	}
+	return nil
+}
+
 // ErrNoComponent is returned of there is no component in DB with provided ID
 var ErrNoComponent = errors.New("No component returned from the database for this ID")
 

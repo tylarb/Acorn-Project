@@ -117,17 +117,17 @@ func (cache *TagCache) add(t TagInfo) error {
 	t.Name = strings.ToLower(t.Name)
 	if cache.Count == 0 || !cache.containsTag(t.Name) {
 		if err := AddTag(t); err != nil {
-			if err == ErrNoComponent {
+			if err == ErrNoComponent || err == ErrTagTooLong || err == ErrNoChannel {
 				return err
 			}
 			log.Panic(err) // we don't want a discrepancy between cache and there's some critical issue here
-			// TODO : error handling wehre we alert the maintainer that there's an issue
+			// TODO : error handling where we alert the maintainer that there's an issue
 		}
 		cache.Tags[t.Name], err = QueryTag(t.Name)
 		cache.Count++
 	} else {
 		if err := AddTag(t); err != nil {
-			if err == ErrNoComponent {
+			if err == ErrNoComponent || err == ErrTagTooLong || err == ErrNoChannel {
 				return err
 			}
 			log.Panic(err)
@@ -151,8 +151,18 @@ func (cache *TagCache) Drop(t string) {
 }
 
 func (cache *TagCache) drop(t string) {
-	cache.Count--
+	if !cache.containsTag(t) {
+		return
+	}
+	t = strings.ToLower(t)
+	err := DropTag(t)
+	if err != nil {
+		log.Error("Could not drop tag from the DB. There may be a discrepancy between the cache and the db")
+		log.Panic(err)
+	}
 	delete(cache.Tags, t)
+	cache.Count--
+
 }
 
 // Load adds all tags in the database to the cache  // TODO - govern concurrent access here?

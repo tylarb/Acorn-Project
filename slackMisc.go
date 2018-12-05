@@ -85,6 +85,13 @@ func usrTrim(u string) string {
 	return strings.Trim(u, "<@>")
 }
 
+// urls come from slack in format <https://google.com|Google>
+func urlTrim(url string) string {
+	s := strings.Trim(url, "<>")
+	s = strings.Split(s, "|")[0]
+	return s
+}
+
 // gets a channel name from ID via API for cleaner printing to logs
 func getChanName(id string) (string, error) {
 	channel, err := sc.GetChannelInfo(id)
