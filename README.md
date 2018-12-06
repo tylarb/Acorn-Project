@@ -1,4 +1,4 @@
-# Acorn-Project [![Build Status](https://travis-ci.org/Tylarb/Acorn-Project.svg?branch=master)](https://travis-ci.org/Tylarb/Acorn-Project)
+# Acorn-Project [![Build Status](https://travis-ci.org/tylarb/Acorn-Project.svg?branch=master)](https://travis-ci.org/tylarb/Acorn-Project)
 Acorn is a slackbot which links resources and support channels to relevant keywords
 
 
